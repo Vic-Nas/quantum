@@ -114,6 +114,8 @@ class Router(unittest.TestCase):
         self.assertEqual(router.route("attack", True, v, True, self.rows)[0], "A")
         self.assertEqual(router.route("attack", True, v, False, self.rows)[0], "B")
         self.assertEqual(router.route("attack", False, v, True, self.rows)[0], "drop")
+        no_qubits = {"target": "ecdlp-256", "toffoli_or_t_count": 5e7}
+        self.assertEqual(router.route("attack", True, no_qubits, True, self.rows)[0], "drop")  # nothing to chart
         self.assertEqual(router.route("attack", True, {"target": "rsa-2048", "physical_qubits": 3e7},
                                       True, self.rows)[0], "B")
 

@@ -30,6 +30,8 @@ def route(kind: str, verified_ok: bool, values: dict, second_agrees: bool, rows:
     """Return (tier, reason). Tier is 'A', 'B' or 'drop'."""
     if not verified_ok:
         return "drop", "failed verification"
+    if kind == "attack" and values.get("physical_qubits") is None and values.get("logical_qubits") is None:
+        return "drop", "no qubit count, so nothing to put on the timeline"
     if kind == "hardware":
         return ("A", "hardware claim") if second_agrees else ("B", "hardware claim, no second-model agreement")
     if not is_frontier(values, rows):

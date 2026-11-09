@@ -104,6 +104,26 @@ class Pipeline(unittest.TestCase):
         self.assertEqual(r["counts"]["drop"], 1)
 
 
+class Retry(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        pipeline.DATA = Path(self.tmp)
+
+    def test_idle_when_queue_is_empty_and_never_touches_models(self):
+        with mock.patch.object(llm, "call_chain", side_effect=AssertionError("models must not be called")):
+            self.assertTrue(pipeline.retry()["idle"])
+        self.assertFalse((Path(self.tmp) / "status.json").exists())  # does not overwrite the daily status
+
+    def test_processes_only_the_queue(self):
+        (Path(self.tmp) / "gold").mkdir()
+        (Path(self.tmp) / "gold" / "gold.jsonl").write_text("")
+        (Path(self.tmp) / "queue.json").write_text(json.dumps({"arxiv:9999.00001@1": {"item": item(1), "attempts": 1, "last_error": "x"}}))
+        with mock.patch.object(llm, "call_chain", fake_chain()), mock.patch.object(pipeline, "canary", lambda: {"ok": True}), \
+                mock.patch.object(pipeline.sources, "fetch_all", side_effect=AssertionError("must not fetch")):
+            r = pipeline.retry()
+        self.assertEqual((r["processed"], r["queue_size"], r["auto_applied"]), (1, 0, 1))
+
+
 class SourceText(unittest.TestCase):
     def test_result_stated_only_in_the_title_verifies(self):
         from qtd import stages

@@ -126,7 +126,10 @@ def radar_rows(path):
         for line in f.read_text().splitlines():
             r = json.loads(line)
             latest[r.get("id") or r.get("url", "")] = r
-    return [r for r in latest.values() if r.get("tier") == "B"][:25]
+    def chartable(r):
+        ests = r.get("estimates") or []
+        return not ests or any(e["values"].get("physical_qubits") is not None or e["values"].get("logical_qubits") is not None for e in ests)
+    return [r for r in latest.values() if r.get("tier") == "B" and chartable(r)][:25]
 
 
 def build(out="site", data="data"):

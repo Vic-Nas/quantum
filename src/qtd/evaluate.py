@@ -100,5 +100,29 @@ def run(gold_path="data/gold/gold.jsonl", use_llm=True):
     return report
 
 
+def compare(models, gold_path="data/gold/gold.jsonl"):
+    """Score candidate second-opinion models on the gold set and against the primary model."""
+    import time
+    gold = [json.loads(l) for l in Path(gold_path).read_text().splitlines() if l.strip()]
+    rel = [g for g in gold if g["relevant"]]
+    _, base = _score("primary", gold, lambda g: stages.extract(g, llm.MODELS["primary"]))
+    out = []
+    for m in models:
+        t0 = time.time()
+        s, o = _score(m, gold, lambda g, m=m: stages.extract(g, m))
+        n = ag = 0
+        for g in rel:
+            for e in base.get(g["id"], []):
+                n += 1
+                ag += int(any_agrees(e["values"], o.get(g["id"], [])))
+        s.update(seconds=round(time.time() - t0), confirms_primary=f"{ag}/{n}", family=llm.family(m))
+        out.append(s)
+    return {"primary": llm.MODELS["primary"], "candidates": out}
+
+
 if __name__ == "__main__":
+    if "--compare" in sys.argv:
+        print(json.dumps(compare(sys.argv[sys.argv.index("--compare") + 1].split(",")), indent=1))
+        raise SystemExit
+
     print(json.dumps(run(use_llm="--no-llm" not in sys.argv), indent=1))

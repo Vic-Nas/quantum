@@ -13,7 +13,7 @@ from .prefilter import prefilter
 from .verify import any_agrees, verify
 
 DATA = Path("data")
-MAX_ATTEMPTS = 6      # give up on an item after this many failed model runs
+MAX_ATTEMPTS = 12     # give up on an item after this many failed model runs (retries run every 2 hours)
 MAX_AUTO_PER_RUN = 3  # more new headline rows than this in one run is held for a person
 ROWS = {"attack": "attacks.json", "hardware": "hardware.json"}
 
@@ -209,3 +209,10 @@ def seed():
     for f in ROWS.values():
         (DATA / f).write_text("[]")
     return run(items=items, max_auto=10**6, check_canary=False)
+
+
+def retry():
+    """Re-check only the queued papers. Does nothing (no fetch, no model call) when the queue is empty."""
+    if not _load(DATA / "queue.json", {}):
+        return {"processed": 0, "queue_size": 0, "idle": True}
+    return run(items=[])
