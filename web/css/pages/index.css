@@ -1,0 +1,20 @@
+/* Home page. Scoped under .p-home. */
+.p-home .summary td:first-child{min-width:150px}
+.p-home .summary .tname{font-weight:600}
+@media (max-width:640px){
+  .p-home .summary thead{display:none}
+  .p-home .summary tr{display:block;padding:12px 16px;border-bottom:1px solid var(--rule)}
+  .p-home .summary td{display:flex;justify-content:space-between;gap:16px;padding:4px 0;border:0;text-align:right}
+  .p-home .summary td::before{content:attr(data-label);color:var(--ink-dim);text-align:left;flex:none}
+  .p-home .summary td:first-child{display:block;text-align:left;min-width:0;padding-bottom:6px}
+  .p-home .summary td:first-child::before{content:none}
+  .p-home .summary td .big{font-size:18px}
+  .p-home .summary td .big.none{font-size:13px}
+  .p-home .summary td .small{display:inline;margin-left:8px}
+  .p-home .scroll{max-height:460px}
+}
+
+.p-home table.wide{min-width:820px}
+.p-home td.nowrap{white-space:nowrap}
+.p-home table.wide{min-width:980px}
+.p-home table.wide td:nth-child(6),.p-home table.wide th:nth-child(6){min-width:360px}
