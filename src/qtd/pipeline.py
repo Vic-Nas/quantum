@@ -17,6 +17,8 @@ from .verify import any_agrees, verify
 DATA = Path("data")
 MAX_ATTEMPTS = 12     # give up on an item after this many failed model runs (retries run every 2 hours)
 MAX_AUTO_PER_RUN = 3  # more new headline rows than this in one run is held for a person
+BACKFILL_PER_RUN = 4  # older papers from data/seed_papers.json the daily run takes per day, until the list is done
+MAX_HISTORY_ROWS = 60  # a safety bound on history rows one run may add; they never move a headline
 ROWS = {"attack": "attacks.json", "hardware": "hardware.json"}
 
 
@@ -43,8 +45,9 @@ def dedupe_estimates(ests: list) -> list:
 
 def process(item: dict, rows: list, use_llm: bool, fulltext: bool = False) -> dict:
     """Run one item through every stage. Raises llm.LLMError if the models are unavailable."""
+    history = bool(item.get("history"))
     rec = {"id": item["id"], "version": item["version"], "url": item["url"], "title": item["title"],
-           "published": item["published"], "tier": "drop", "reason": "", "estimates": [], "trail": {}}
+           "published": item["published"], "tier": "drop", "reason": "", "estimates": [], "trail": {}, "history": history}
     pf = prefilter(item)
     rec["trail"]["prefilter"] = pf
     rx = regex_extract.extract(f"{item['title']}. {item['text']}")
@@ -76,7 +79,7 @@ def process(item: dict, rows: list, use_llm: bool, fulltext: bool = False) -> di
         kind = v1["kind"] if v1["kind"] in ("attack", "hardware") else kind
         if n == 0:
             rec["trail"]["primary"] = {"model": m1v, "extraction": ex1, "estimates": v1["estimates"]}
-        needs = [e for e in v1["ok_estimates"] if v1["kind"] == "hardware" or router.is_frontier(e["values"], rows)]
+        needs = [e for e in v1["ok_estimates"] if v1["kind"] == "hardware" or history or router.is_frontier(e["values"], rows)]
         v2, m2v = None, None
         if needs:
             ex2, m2v = llm.call_chain("secondary", lambda mod: stages.extract(view, mod), exclude=m1v)
@@ -100,7 +103,7 @@ def process(item: dict, rows: list, use_llm: bool, fulltext: bool = False) -> di
         for e in v1["estimates"]:
             second = independent and e["ok"] and (any_agrees(e["values"], v2["ok_estimates"] if v2 else [])
                                                   or bool(v3 and any_agrees(e["values"], v3["ok_estimates"])))
-            tier, why = router.route(v1["kind"], e["ok"], e["values"], second, rows)
+            tier, why = router.route(v1["kind"], e["ok"], e["values"], second, rows, history)
             if v2 and not independent and tier == "A":
                 tier, why = "B", "second opinion came from the same model as the first"
             rec["estimates"].append({"kind": v1["kind"], "values": e["values"], "quote": e["quote"], "tier": tier, "reason": why,
@@ -149,14 +152,33 @@ def _load(path, default):
     return json.loads(path.read_text()) if path.exists() else default
 
 
+def _backfill(seen: set, limit: int):
+    """The next few older papers from data/seed_papers.json that the daily run has not read yet. An id arXiv does not
+    know is marked read so it cannot block the list."""
+    ids = _load(DATA / "seed_papers.json", {}).get("ids", [])
+    want = [i for i in ids if f"arxiv:{i}@seed" not in seen][:limit]
+    if not want:
+        return [], {}
+    try:
+        got = sources.backfill(want)
+    except RuntimeError as e:
+        return [], {"backfill": str(e)[:120]}
+    have = {it["id"] for it in got}
+    seen.update(f"arxiv:{i}@seed" for i in want if f"arxiv:{i}" not in have)
+    return got, {}
+
+
 def run(use_llm: bool = True, limit: int | None = None, items: list | None = None,
         auto_apply: bool = True, dry: bool = False, max_auto: int = MAX_AUTO_PER_RUN,
         check_canary: bool = True, fulltext: bool = False):
     """Run the pipeline. dry=True writes nothing. Returns a summary dict."""
     errors = {}
+    seen = set(_load(DATA / "seen.json", []))
     if items is None:
         items, errors = sources.fetch_all()
-    seen = set(_load(DATA / "seen.json", []))
+        if use_llm:
+            extra, err = _backfill(seen, BACKFILL_PER_RUN)
+            items, errors = items + extra, {**errors, **err}
     queue = _load(DATA / "queue.json", {})
     rows = {k: _load(DATA / f, []) for k, f in ROWS.items()}
     work = [(i, queue.get(f"{i['id']}@{i['version']}", {}).get("attempts", 0)) for i in items
@@ -190,7 +212,8 @@ def run(use_llm: bool = True, limit: int | None = None, items: list | None = Non
         recs.append(rec)
     gate = canary() if (check_canary and use_llm and auto_apply and any(r["tier"] == "A" for r in recs)) else {"ok": True}
     new_a = [(r, e) for r in recs for e in r["estimates"] if e["tier"] == "A"]
-    allow = auto_apply and gate["ok"] and len(new_a) <= max_auto
+    allow = (auto_apply and gate["ok"] and len([1 for r, _ in new_a if not r.get("history")]) <= max_auto
+             and len(new_a) <= max(max_auto, MAX_HISTORY_ROWS))
     for n, (r, e) in enumerate(new_a):
         (applied if allow else held).append((r, e, n))
     if not dry:

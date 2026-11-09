@@ -26,16 +26,19 @@ def is_frontier(values: dict, rows: list) -> bool:
     return False
 
 
-def route(kind: str, verified_ok: bool, values: dict, second_agrees: bool, rows: list):
-    """Return (tier, reason). Tier is 'A', 'B' or 'drop'."""
+def route(kind: str, verified_ok: bool, values: dict, second_agrees: bool, rows: list, history: bool = False):
+    """Return (tier, reason). Tier is 'A', 'B' or 'drop'.
+
+    history=True is a backfilled older paper: it need not beat the best known figure, because it can only add a point to the
+    timeline and can never lower the headline."""
     if not verified_ok:
         return "drop", "failed verification"
     if kind == "attack" and values.get("physical_qubits") is None and values.get("logical_qubits") is None:
         return "drop", "no qubit count, so nothing to put on the timeline"
     if kind == "hardware":
         return ("A", "hardware claim") if second_agrees else ("B", "hardware claim, no second-model agreement")
-    if not is_frontier(values, rows):
+    if not history and not is_frontier(values, rows):
         return "B", "verified but not cheaper than known estimates"
     if not second_agrees:
         return "B", "would move a date but second model disagrees or failed"
-    return "A", "verified, frontier, two models agree"
+    return "A", "verified, history, two models agree" if history else "verified, frontier, two models agree"

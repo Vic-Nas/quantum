@@ -280,5 +280,47 @@ class Chain(unittest.TestCase):
             llm.call_chain("primary", lambda m: (_ for _ in ()).throw(llm.LLMError("down")))
 
 
+class Backfill(unittest.TestCase):
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        pipeline.DATA = self.tmp
+        (self.tmp / "gold").mkdir()
+        (self.tmp / "gold" / "gold.jsonl").write_text("")
+        (self.tmp / "seed_papers.json").write_text(json.dumps({"ids": ["1111.00001", "1111.00002", "1111.00003"]}))
+
+    def test_takes_the_next_unread_ids_and_marks_unknown_ones_read(self):
+        got = [{**item(1), "id": "arxiv:1111.00001", "version": "seed", "history": True}]
+        seen = set()
+        with mock.patch.object(pipeline.sources, "backfill", return_value=got) as bf:
+            items, err = pipeline._backfill(seen, 2)
+        bf.assert_called_once_with(["1111.00001", "1111.00002"])
+        self.assertEqual(items, got)
+        self.assertEqual(seen, {"arxiv:1111.00002@seed"})  # arXiv did not know it: never blocks the list
+        self.assertEqual(err, {})
+
+    def test_an_arxiv_outage_is_reported_not_fatal(self):
+        with mock.patch.object(pipeline.sources, "backfill", side_effect=RuntimeError("GET failed")):
+            items, err = pipeline._backfill(set(), 4)
+        self.assertEqual(items, [])
+        self.assertIn("backfill", err)
+
+    def test_nothing_left_costs_nothing(self):
+        seen = {f"arxiv:1111.0000{n}@seed" for n in (1, 2, 3)}
+        with mock.patch.object(pipeline.sources, "backfill") as bf:
+            self.assertEqual(pipeline._backfill(seen, 4), ([], {}))
+        bf.assert_not_called()
+
+    def test_an_older_paper_is_added_as_history_but_a_new_one_must_beat_the_best(self):
+        (self.tmp / "attacks.json").write_text(json.dumps([{"id": "arxiv:1.0#0", "target": "rsa-2048", "physical_qubits": 1000.0}]))
+        old = {**item(2), "history": True}
+        new = item(3)
+        with mock.patch.object(llm, "call_chain", fake_chain()), mock.patch.object(pipeline, "canary", lambda: {"ok": True}):
+            r = pipeline.run(items=[old, new])
+        self.assertEqual(r["counts"]["A"], 1)  # the history paper; the other is not cheaper than 1,000 qubits
+        ids = [x["id"] for x in json.loads((self.tmp / "attacks.json").read_text())]
+        self.assertIn("arxiv:9999.00002#0", ids)
+        self.assertNotIn("arxiv:9999.00003#0", ids)
+
+
 if __name__ == "__main__":
     unittest.main()

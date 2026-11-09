@@ -12,10 +12,10 @@ from pathlib import Path
 
 from . import cardimg, cards, chart
 from .breakdate import METRICS, earliest_path, requirement, supply_points
-from .present import (datetime_label, ALGORITHMS, ALGORITHMS_NOTE, CHART_GROUPS, CONSEQUENCE, COUNTDOWN,
+from .present import (GLOSSARY, datetime_label, ALGORITHMS, ALGORITHMS_NOTE, CHART_GROUPS, CONSEQUENCE, COUNTDOWN,
                       PROXY_TARGETS, SECURES, SECURES_NOTE, SERVICES, clean, count,
                       date_label, dom_id, duration, headline, label, paper_id,
-                      plain_reason, series, short_count, strip_dashes, year_frac,
+                      paper_rows, pct_label, plain_reason, series, short_count, strip_dashes, year_frac,
                       year_label)
 
 WEB = Path("web")
@@ -230,85 +230,162 @@ def threat_grid_html(crows):
     return f'<div class="card-grid">{"".join(items)}</div>'
 
 
-def progress_svg(target, rows, w=560, h=180):
-    pts = series(rows, target)
+def _nice_ticks(lo, hi):
+    """Gridline values (1, 2, 5 times a power of ten) between 10**lo and 10**hi."""
+    out = []
+    for k in range(math.floor(lo), math.ceil(hi) + 1):
+        for m in (1, 2, 5):
+            v = m * 10 ** k
+            if lo <= math.log10(v) <= hi:
+                out.append(v)
+    return out
+
+
+def progress_svg(target, rows, metric="physical_qubits", today=None, w=520, h=230):
+    """Staircase of the smallest machine each paper says is enough, with the value and the % drop at every record."""
+    pts = series(rows, target, metric)
     if len(pts) < 2:
         return ""
     xs = [p["x"] for p in pts]
     ys = [math.log10(max(p["y"], 1)) for p in pts]
-    x0, x1 = min(xs) - 0.5, max(xs) + 0.5
-    y0, y1 = min(ys) - 0.3, max(ys) + 0.3
-    if y1 - y0 < 0.5:
-        y0 -= 0.3
-        y1 += 0.3
-    pl, pr, pt, pb = 65, 20, 15, 30
+    x0, x1 = min(xs) - 0.35, max(max(xs), today or 0) + 0.2
+    y0, y1 = min(ys) - 0.35, max(ys) + 0.45
+    pl, pr, pt, pb = 58, 14, 14, 28
     pw, ph = w - pl - pr, h - pt - pb
 
     def sx(v):
         return pl + (v - x0) / (x1 - x0) * pw
 
     def sy(v):
-        return pt + (1 - (v - y0) / (y1 - y0)) * ph
+        return pt + (1 - (math.log10(max(v, 1)) - y0) / (y1 - y0)) * ph
 
-    svg = [f'<svg viewBox="0 0 {w} {h}" class="prog" xmlns="http://www.w3.org/2000/svg">']
-    for exp in range(int(math.floor(min(ys))), int(math.ceil(max(ys))) + 1):
-        yy = sy(exp)
-        svg.append(f'<line x1="{pl}" y1="{yy:.1f}" x2="{w - pr}" y2="{yy:.1f}" '
-                   f'stroke="rgb(var(--ink-rgb)/.07)" stroke-width="1"/>')
-        svg.append(f'<text x="{pl - 8}" y="{yy:.1f}" fill="var(--ink-dim)" font-size="11" '
-                   f'font-family="var(--sans)" text-anchor="end" dominant-baseline="middle">'
-                   f'{short_count(10 ** exp)}</text>')
-    year_set = sorted(set(int(x) for x in xs))
-    for yr in year_set:
-        xx = sx(yr + 0.5)
-        svg.append(f'<text x="{xx:.1f}" y="{h - 6}" fill="var(--ink-dim)" font-size="11" '
-                   f'font-family="var(--sans)" text-anchor="middle">{yr}</text>')
+    svg = [f'<svg viewBox="0 0 {w} {h}" class="prog" role="img" aria-label="{e(PROG_META[metric][0])} over time">']
+    for v in _nice_ticks(y0, y1):
+        yy = sy(v)
+        svg.append(f'<line class="g" x1="{pl}" y1="{yy:.1f}" x2="{w - pr}" y2="{yy:.1f}"/>'
+                   f'<text class="ax" x="{pl - 8}" y="{yy + 4:.1f}" text-anchor="end">{short_count(v)}</text>')
+    span = x1 - x0
+    step = 1 if span <= 6 else 2 if span <= 12 else 5
+    for yr in range(math.ceil(x0), math.floor(x1) + 1):
+        if yr % step == 0 or span <= 6:
+            svg.append(f'<text class="ax" x="{sx(yr):.1f}" y="{h - 8}" text-anchor="middle">{yr}</text>')
     recs = [p for p in pts if p["record"]]
-    if len(recs) >= 2:
-        d = []
-        for i, p in enumerate(recs):
-            px, py = sx(p["x"]), sy(math.log10(max(p["y"], 1)))
-            if i == 0:
-                d.append(f"M{px:.1f},{py:.1f}")
-            else:
-                d.append(f"H{px:.1f}V{py:.1f}")
-        d.append(f"H{sx(max(xs) + 0.3):.1f}")
-        svg.append(f'<path d="{"".join(d)}" fill="none" stroke="var(--accent)" '
-                   f'stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>')
+    d = []
+    for i, p in enumerate(recs):
+        px, py = sx(p["x"]), sy(p["y"])
+        d.append(f"M{px:.1f},{py:.1f}" if i == 0 else f"H{px:.1f}V{py:.1f}")
+    d.append(f"H{sx(max(max(xs), today or 0)):.1f}")
+    svg.append(f'<path class="stp" d="{"".join(d)}" fill="none"/>')
     for p in pts:
-        px, py = sx(p["x"]), sy(math.log10(max(p["y"], 1)))
-        fill = "var(--accent)" if p["record"] else "var(--surface)"
-        r = 4.5 if p["record"] else 3.5
-        svg.append(f'<circle cx="{px:.1f}" cy="{py:.1f}" r="{r}" fill="{fill}" '
-                   f'stroke="var(--accent)" stroke-width="1.8"/>')
+        px, py = sx(p["x"]), sy(p["y"])
+        svg.append(f'<circle class="pt{" rec" if p["record"] else ""}" cx="{px:.1f}" cy="{py:.1f}" r="{5 if p["record"] else 4}">'
+                   f'<title>{e(date_label(p["date"]))}: {e(short_count(p["y"]))} {e(_words(metric))} qubits</title></circle>')
+    prev_x, prev_below = None, True
+    for p in recs:
+        px, py = sx(p["x"]), sy(p["y"])
+        flip = px > w - pr - 90
+        ax, tx = ("end", px - 9) if flip else ("start", px + 9)
+        sub = f'down {pct_label(p["drop"])}' if p["drop"] else "first estimate"
+        below = prev_x is not None and abs(px - prev_x) < 95 and not prev_below  # a close neighbour took the space above
+        v_y, s_y = (py + 18, py + 31) if below else (py - 19, py - 6)
+        svg.append(f'<text class="vl" x="{tx:.1f}" y="{v_y:.1f}" text-anchor="{ax}">{short_count(p["y"])}</text>'
+                   f'<text class="dl{" dn" if p["drop"] else ""}" x="{tx:.1f}" y="{s_y:.1f}" text-anchor="{ax}">{sub}</text>')
+        prev_x, prev_below = px, below
     svg.append("</svg>")
-    return "\n".join(svg)
+    return "".join(svg)
 
 
-def paper_card_html(r, show_target=False):
-    date = date_label(r.get("published", ""), short=True)
-    pid = paper_id(r["id"])
-    pq, lq, rt = r.get("physical_qubits"), r.get("logical_qubits"), r.get("runtime")
-    metrics = []
-    if pq is not None:
-        metrics.append(f"{short_count(pq)} physical qubits")
-    if lq is not None:
-        metrics.append(f"{short_count(lq)} logical qubits")
-    if rt is not None:
-        metrics.append(duration(rt))
-    target_tag = ""
-    if show_target:
-        lbl = label(r.get("target", ""))[0]
-        target_tag = f'<span class="pc-target">{e(lbl)}</span>'
-    return (f'<div class="paper-card">'
-            f'<div class="pc-head"><span class="pc-date">{e(date)}</span>'
-            f'<span class="pc-id">{e(pid)}</span>{target_tag}</div>'
-            f'<h3><a href="{e(r["url"])}">{e(clean(r["title"], 120))}</a></h3>'
-            f'<p class="pc-metrics">{e(" · ".join(metrics))}</p></div>')
+PROG_META = {"physical_qubits": ("Physical qubits", "The real qubits in a machine."),
+             "logical_qubits": ("Logical qubits", "Error-corrected qubits, each made from many physical ones.")}
 
 
-def vendor_timeline_html(actor, entries):
-    steps = []
+def progress_cards_html(targets, rows, today):
+    cards = []
+    for metric in METRICS:
+        for t in targets:
+            svg = progress_svg(t, rows, metric, today)
+            if not svg:
+                continue
+            svg = (f'<div class="prog-wide">{svg}</div>'
+                   f'<div class="prog-narrow">{progress_svg(t, rows, metric, today, w=330, h=240)}</div>')
+            pts = series(rows, t, metric)
+            first, best = pts[0], min(pts, key=lambda p: (p["y"], -p["x"]))
+            foot = f'Best today: <strong>{e(short_count(best["y"]))}</strong>'
+            if best is not first:
+                foot += f', down {pct_label(1 - best["y"] / first["y"])} since {e(date_label(first["date"], short=True))}'
+            title, sub = PROG_META[metric]
+            cards.append(f'<div class="prog-card"><h3>{title} needed</h3><p class="dim">{sub}</p>{svg}'
+                         f'<p class="prog-foot">{foot}</p></div>')
+            break
+    if not cards:
+        return ""
+    return ('<section class="t-section"><h2>How many qubits an attack needs, over time</h2>'
+            '<p class="dim">Each dot is a published attack. Lower means an easier attack, so a falling line is bad news.</p>'
+            f'<div class="prog-grid">{"".join(cards)}</div></section>')
+
+
+def stats_html(crow, rows):
+    """Three plain facts at the top of a threat page: what it takes today, how that changed, what machines are announced."""
+    primary = None
+    if not crow["safe"]:
+        dated = [ln for ln in crow["lines"] if ln.get("year")]
+        primary = min(dated, key=lambda l: l["year"]) if dated else crow["lines"][0]
+    else:
+        primary = crow["lines"][0]
+    metric, row = primary["metric"], primary["row"]
+    other_m = "logical_qubits" if metric == "physical_qubits" else "physical_qubits"
+    other = requirement(rows, primary["target"], other_m)
+    sub = f'{e(date_label(row.get("published", ""), short=True))} paper'
+    if other:
+        sub += f' · also {e(short_count(other[other_m]))} {e(_words(other_m))} qubits'
+    tiles = [("Needed today", f'{e(short_count(primary["need"]))} {e(_words(metric))} qubits', sub)]
+    pts = series(rows, primary["target"], metric)
+    if len(pts) >= 2 and pts[0]["y"] > primary["need"]:
+        tiles.append(("Since the first estimate", f'down {pct_label(1 - primary["need"] / pts[0]["y"])}',
+                      f'from {e(short_count(pts[0]["y"]))} in {e(date_label(pts[0]["date"], short=True))}'))
+    else:
+        tiles.append(("Since the first estimate", "no change", "no earlier figure to compare"))
+    if not crow["safe"]:
+        sup = primary["path"].get("supply")
+        if sup:
+            tiles.append(("Machine announced", f'{e(short_count(sup[metric]))} by {e(year_label(int(primary["path"]["year"]), sup.get("target_month")))}',
+                          f'{e(sup["actor"])}, enough for this attack'))
+        else:
+            tiles.append(("Machine announced", "none big enough yet", "vendor plans checked daily"))
+    else:
+        tiles.append(("In practice", "not practical", "needs far too many steps in a row"))
+    html_ = "".join(f'<div class="stat"><span class="st-l">{l}</span><span class="st-v">{v}</span><span class="st-s">{sb}</span></div>'
+                    for l, v, sb in tiles)
+    return f'<div class="stats">{html_}</div>'
+
+
+def _qubit_cell(value, drop, label_):
+    if value is None:
+        return f'<td class="num dim" data-l="{label_}">n/a</td>'
+    tag = f'<small class="chg">down {pct_label(drop)}</small>' if drop else ""
+    return f'<td class="num" data-l="{label_}">{e(short_count(value))}{tag}</td>'
+
+
+def papers_table_html(prows):
+    body = "".join(
+        f'<tr><td class="dt">{e(date_label(r["published"], short=True))}</td>'
+        f'<td><a href="{e(r["url"])}">{e(clean(r["title"], 140))}</a><small>{e(paper_id(r["id"]))}</small></td>'
+        f'{_qubit_cell(r["physical_qubits"], r["phys_drop"], "Physical qubits")}{_qubit_cell(r["logical_qubits"], r["log_drop"], "Logical qubits")}'
+        f'<td class="num" data-l="Run time">{e(duration(r["runtime"])) if r["runtime"] is not None else "n/a"}</td></tr>'
+        for r in prows)
+    return ('<div class="tbl"><table class="papers"><thead><tr><th>Date</th><th>Paper</th><th class="num">Physical qubits</th>'
+            '<th class="num">Logical qubits</th><th class="num">Run time</th></tr></thead>'
+            f'<tbody>{body}</tbody></table></div>')
+
+
+def breaks_for(hw, lines):
+    """Names of the attacks a vendor's announced machine is big enough for (same kind of qubit, at least as many)."""
+    return [ln["name"] + (" (small 512-bit size only)" if ln["target"] in PROXY_TARGETS else "")
+            for ln in lines if ln["practical"] and hw.get(ln["metric"]) is not None and hw[ln["metric"]] >= ln["need"]]
+
+
+def vendor_timeline_html(actor, entries, lines=()):
+    steps, known = [], set()
     for entry in sorted(entries, key=lambda x: x.get("target_year", 0)):
         yr = int(entry["target_year"])
         yl = year_label(yr, entry.get("target_month"))
@@ -318,8 +395,11 @@ def vendor_timeline_html(actor, entries):
             parts.append(f"{pq} physical")
         if lq:
             parts.append(f"{lq} logical")
+        can = [n for n in breaks_for(entry, lines) if n not in known]
+        tag = (f'<span class="rm-breaks">{"Also could" if known else "Could"} break: {e(", ".join(can))}</span>' if can else "")
+        known.update(can)
         steps.append(f'<div class="rm-step"><span class="rm-year">{e(yl)}</span>'
-                     f'<span class="rm-qubits">{e(" / ".join(parts))} qubits</span></div>')
+                     f'<span class="rm-qubits">{e(" / ".join(parts))} qubits</span>{tag}</div>')
     url = entries[0].get("url", "")
     link = f'<a class="rm-source" href="{e(url)}">Source</a>' if url else ""
     return f'<div class="vendor-card"><h3>{e(actor)}</h3><div class="rm-timeline">{"".join(steps)}</div>{link}</div>'
@@ -375,8 +455,13 @@ def services_html(crows, pq_overrides=None, facts=None):
             f'<div class="svc-grid">{"".join(items)}</div></section>')
 
 
+def gloss_html():
+    items = "".join(f"<dt>{e(t)}</dt><dd>{e(d)}</dd>" for t, d in GLOSSARY)
+    return f'<details class="gloss"><summary>New to this? What the words mean</summary><dl>{items}</dl></details>'
+
+
 def home_body(crows, today, alert, pq_overrides=None, facts=None):
-    cd = countdown_html(crows, today)
+    cd = countdown_html(crows, today) + (gloss_html() if crows else "")
     svcs = services_html(crows, pq_overrides, facts) if crows else ""
     grid = threat_grid_html(crows) if crows else ""
     empty = '<p class="empty">No verified estimates yet. The first update has not stored any.</p>' if not crows else ""
@@ -386,7 +471,7 @@ def home_body(crows, today, alert, pq_overrides=None, facts=None):
             f'{alert}{cd}{empty}{svcs}{grid}')
 
 
-def threat_body(crow, rows, hw_rows, depth, facts=None):
+def threat_body(crow, rows, hw_rows, depth, facts=None, today=None):
     root = _root(depth)
     all_targets = [ln["target"] for ln in crow["lines"]]
     primary_target = all_targets[0]
@@ -427,119 +512,85 @@ def threat_body(crow, rows, hw_rows, depth, facts=None):
                f'{effects}{exposed}'
                f'<p class="d-note">{e(SECURES_NOTE)}</p></aside>')
 
-    intro = ""
+    stats = stats_html(crow, rows)
+    note = ""
     source = ""
     if not crow["safe"]:
         dated = [ln for ln in crow["lines"] if ln.get("year")]
         primary = min(dated, key=lambda l: l["year"]) if dated else crow["lines"][0]
         r = primary["row"]
-        p = primary["path"]
-        size = short_count(r[primary["metric"]])
-        mw = _words(primary["metric"])
-        text = f'The cheapest published attack needs <strong>{e(size)} {mw} qubits</strong>.'
-        if p.get("supply"):
-            s = p["supply"]
-            ms = short_count(s[primary["metric"]])
-            yl = year_label(int(p["year"]), s.get("target_month"))
-            text += f' {e(s["actor"])} plans {e(ms)} by {e(yl)}.'
-        if r.get("runtime") is not None:
-            text += f' Runs in about {e(duration(r["runtime"]))}.'
-        intro = f'<p class="t-summary">{text}</p>'
         kicker = f'{e(date_label(r.get("published", "")) or "date unknown")} · {e(paper_id(r["id"]))}'
-        source = (f'<div class="d-source"><p class="d-kicker">{kicker}</p>'
-                  f'<h3>{e(clean(r["title"], 160))}</h3>'
+        source = (f'<details class="d-source"><summary>The paper behind the smallest figure</summary>'
+                  f'<p class="d-kicker">{kicker}</p><h3>{e(clean(r["title"], 160))}</h3>'
                   f'<blockquote>{e(clean(r["quote"], 700))}</blockquote>'
-                  f'<a class="read" href="{e(r["url"])}">Read the paper</a></div>')
+                  f'<a class="read" href="{e(r["url"])}">Read the paper</a></details>')
     else:
         parts = [CONSEQUENCE.get(ln["target"], "") for ln in crow["lines"]]
-        intro = "".join(f'<p class="t-summary">{e(x)}</p>' for x in parts if x)
+        note = "".join(f'<p class="t-summary">{e(x)}</p>' for x in parts if x)
 
-    top = f'{intro}{context}{source}'
-
-    prog = ""
-    for t in all_targets:
-        svg = progress_svg(t, rows)
-        if svg:
-            tl = label(t)[0]
-            prog = (f'<section class="t-section"><h2>How estimates have improved</h2>'
-                    f'<p class="dim">Physical qubits needed to break {e(tl)}, log scale. '
-                    f'Filled dots set a new record low.</p>{svg}</section>')
-            break
+    prog = progress_cards_html(all_targets, rows, today)
 
     hw_section = ""
     if not crow["safe"]:
-        relevant = []
-        for ln in crow["lines"]:
-            need = ln["row"].get(ln["metric"])
-            if need is None:
-                continue
-            for hw in hw_rows:
-                hw_val = hw.get(ln["metric"])
-                if hw_val is not None and hw_val >= need and hw not in relevant:
-                    relevant.append(hw)
+        relevant = [hw for hw in hw_rows if breaks_for(hw, crow["lines"])]
         if relevant:
             actors = {}
             for hw in relevant:
                 actors.setdefault(hw["actor"], []).append(hw)
-            hw_cards = "".join(vendor_timeline_html(a, ents) for a, ents in sorted(actors.items()))
-            hw_section = (f'<section class="t-section"><h2>Hardware that could deliver</h2>'
-                          f'<p class="dim">Vendor announcements with enough qubits.</p>'
+            hw_cards = "".join(vendor_timeline_html(a, ents, crow["lines"]) for a, ents in sorted(actors.items()))
+            hw_section = (f'<section class="t-section"><h2>Machines big enough</h2>'
+                          f'<p class="dim">Announced plans from vendors. Not delivered machines.</p>'
                           f'<div class="vendor-grid">{hw_cards}</div></section>')
 
-    target_papers = sorted([r for r in rows if r.get("target") in all_targets],
-                           key=lambda r: r.get("published", ""), reverse=True)
+    prows = paper_rows(rows, set(all_targets))
     papers = ""
-    if target_papers:
-        pcards = "".join(paper_card_html(r) for r in target_papers)
-        n = len(target_papers)
-        papers = (f'<section class="t-section"><h2>Published estimates ({n})</h2>'
-                  f'<div class="card-grid compact">{pcards}</div></section>')
+    if prows:
+        papers = (f'<section class="t-section"><h2>The papers ({len(prows)})</h2>'
+                  f'<p class="dim">Newest first. A red change is a new low: how much smaller than the best figure before it.</p>'
+                  f'{papers_table_html(prows)}{source}</section>')
 
-    return f'{hero}{top}{prog}{hw_section}{papers}'
+    return f'{hero}{stats}{note}{prog}{context}{hw_section}{papers}'
 
 
 def research_body(rows):
-    by_target = {}
-    for r in rows:
-        by_target.setdefault(r.get("target", "other"), []).append(r)
     sections = []
     for target, name, _who, _status in CHART_GROUPS:
-        papers = by_target.get(target, [])
-        if not papers:
+        prows = paper_rows(rows, {target})
+        if not prows:
             continue
-        papers = sorted(papers, key=lambda r: r.get("published", ""), reverse=True)
-        lbl = label(target)[0]
-        pcards = "".join(paper_card_html(r) for r in papers)
-        sections.append(f'<section class="r-section"><h2>{e(lbl)} ({len(papers)})</h2>'
-                        f'<div class="card-grid compact">{pcards}</div></section>')
-    return (f'<section class="hero"><h1>Published attack estimates</h1>'
-            f'<p class="lede">Every figure is quoted from a paper and checked against its text. '
-            f'Sorted by target, newest first.</p></section>{"".join(sections)}')
+        sections.append(f'<section class="r-section"><h2>{e(label(target)[0])} ({len(prows)})</h2>'
+                        f'<p class="dim">{e(label(target)[1])}</p>{papers_table_html(prows)}</section>'
+                        if label(target)[1] else
+                        f'<section class="r-section"><h2>{e(label(target)[0])} ({len(prows)})</h2>{papers_table_html(prows)}</section>')
+    return (f'<section class="hero"><h1>Every paper we track</h1>'
+            f'<p class="lede">Each figure is quoted from the paper and checked against its text. Lower qubit counts mean an easier attack.</p>'
+            f'</section>{"".join(sections)}')
 
 
-def hardware_body(hw_rows):
+def hardware_body(hw_rows, lines=()):
     actors = {}
     for hw in hw_rows:
         actors.setdefault(hw["actor"], []).append(hw)
-    vendor_cards = "".join(vendor_timeline_html(a, ents) for a, ents in sorted(actors.items()))
-    return (f'<section class="hero"><h1>Hardware roadmaps</h1>'
-            f'<p class="lede">Quantum computer vendors\' announced plans. '
-            f'Plans, not delivered machines.</p></section>'
+    vendor_cards = "".join(vendor_timeline_html(a, ents, lines) for a, ents in sorted(actors.items()))
+    return (f'<section class="hero"><h1>Machines vendors plan to build</h1>'
+            f'<p class="lede">How many qubits each says it will have, and by when. Plans, not delivered machines. '
+            f'"Could break" marks a machine at least as big as the smallest attack we know of.</p></section>'
             f'<div class="vendor-grid">{vendor_cards}</div>')
 
 
 def chart_body(lines, narrow_lines, phys, logi, today, alt):
     if not lines:
         return '<p class="empty">No data for the chart yet.</p>'
-    return (f'<section class="hero compact"><h1>Technical overview</h1>'
-            f'<p class="lede">{e(alt)}</p></section>'
+    return (f'<section class="hero compact"><h1>Machines versus attacks</h1>'
+            '<p class="lede">An attack becomes possible once a machine\'s orange line is above its black line. '
+            'Height is qubits on a log scale, so each gridline is ten times the one below.</p></section>'
             '<div class="chartwrap full">'
             f'<div class="tl-wide">{chart.overview_svg(lines, phys, logi, 1060, 520, alt, today)}</div>'
             f'<div class="tl-narrow">{chart.overview_svg(narrow_lines, phys, logi, 380, 440, alt, today, narrow=True)}</div>'
-            '<p class="legend"><span class="li"><span class="k line"></span>Machines vendors announced: physical qubits</span>'
-            '<span class="li"><span class="k line dashed"></span>logical qubits</span>'
-            '<span class="li"><span class="k need"></span>Size an attack needs (solid: physical, dashed: logical)</span>'
-            '<span class="li"><span class="k ring"></span>Where a machine passes it</span></p>'
+            '<p class="legend"><span class="li"><span class="k line"></span>Biggest machine announced (physical qubits)</span>'
+            '<span class="li"><span class="k line dashed"></span>same in logical qubits</span>'
+            '<span class="li"><span class="k need"></span>Qubits an attack needs, named at the right</span>'
+            '<span class="li"><span class="k ring"></span>First year a machine is big enough</span></p>'
             '</div>')
 
 
@@ -609,7 +660,7 @@ def build(out="site", data="data"):
         slug = crow["slug"]
         d = out / "threats" / slug
         d.mkdir(parents=True, exist_ok=True)
-        tbody = threat_body(crow, rows, hw_rows, 2, facts)
+        tbody = threat_body(crow, rows, hw_rows, 2, facts, today)
         tcard = page_card(f"{crow['title']} | Quantum threat tracker",
                           f"When could quantum computers break {crow['title'].lower()}?",
                           f"{url}threats/{slug}/")
@@ -642,7 +693,7 @@ def build(out="site", data="data"):
     # --- Hardware ---
     hd = out / "hardware"
     hd.mkdir(parents=True, exist_ok=True)
-    hbody = hardware_body(hw_rows)
+    hbody = hardware_body(hw_rows, lines)
     hcard = page_card("Hardware | Quantum threat tracker",
                       "Quantum computer vendors' announced roadmaps.", f"{url}hardware/")
     (hd / "index.html").write_text(

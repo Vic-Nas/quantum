@@ -15,11 +15,14 @@ ALLOWLIST = ("arxiv.org", "eprint.iacr.org", "ionq.com", "quantinuum.com", "quan
 ARXIV_QUERIES = [
     'abs:"discrete logarithm" AND abs:quantum',
     'abs:"elliptic curve" AND abs:"logical qubits"',
-    'abs:"elliptic curve" AND abs:quantum AND cat:quant-ph',
+    'abs:"elliptic curve" AND abs:quantum AND (abs:Toffoli OR abs:qubits)',
     'abs:RSA AND abs:"logical qubits"',
+    'abs:RSA AND abs:factoring AND abs:qubits',
     'abs:Shor AND abs:"resource estimate"',
     'abs:factoring AND abs:"physical qubits"',
-    'au:Gidney', 'au:Ekera', 'au:Litinski', 'au:Roetteler',
+    'abs:Grover AND (abs:AES OR abs:SHA)',
+    'abs:secp256k1 AND abs:quantum',
+    'au:Gidney', 'au:Ekera', 'au:Litinski', 'au:Roetteler', 'au:Schrottenloher', 'au:Gouzien', 'au:Babbush',
 ]
 _NS = {"a": "http://www.w3.org/2005/Atom"}
 
@@ -68,6 +71,14 @@ def fetch_arxiv_ids(ids):
         batch = ids[k:k + 4]
         q = urllib.parse.urlencode({"id_list": ",".join(batch), "max_results": len(batch)})
         items += parse_arxiv(http.get("https://export.arxiv.org/api/query?" + q, timeout=90))
+    return items
+
+
+def backfill(ids):
+    """Fetch older papers by id for the history timeline. They are marked so the router accepts them as history."""
+    items = fetch_arxiv_ids(ids)
+    for it in items:
+        it["version"], it["history"] = "seed", True
     return items
 
 

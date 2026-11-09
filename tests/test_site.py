@@ -253,19 +253,24 @@ class Build(unittest.TestCase):
         self.assertIn("Read the paper", html)
         self.assertIn("Where you meet it", html)
         self.assertIn("If it breaks", html)
-        self.assertIn("Published estimates", html)
+        self.assertIn("The papers (", html)
+        self.assertIn("Needed today", html)
+        self.assertIn("Machine announced", html)
         self.assertIn("All threats", html)
 
     def test_threat_page_has_hardware_section(self):
         out = self.build(ROWS, STATUS, hw=HW)
         html = (out / "threats" / "bitcoin" / "index.html").read_text()
-        self.assertIn("Hardware that could deliver", html)
+        self.assertIn("Machines big enough", html)
         self.assertIn("IonQ", html)
+        self.assertIn("Could break: 256-bit curves", html)
+        self.assertEqual(html.count("could break: ") + html.count("Could break: "), 1)  # only where the list grows
 
     def test_research_page_lists_all_papers(self):
         out = self.build(ROWS, STATUS, hw=HW)
         html = (out / "research" / "index.html").read_text()
-        self.assertIn("Published attack estimates", html)
+        self.assertIn("Every paper we track", html)
+        self.assertIn("<table", html)
         self.assertIn("256-bit elliptic curve", html)
         self.assertIn("RSA-2048", html)
         for r in ROWS:
@@ -274,13 +279,14 @@ class Build(unittest.TestCase):
     def test_hardware_page_shows_vendors(self):
         out = self.build(ROWS, STATUS, hw=HW)
         html = (out / "hardware" / "index.html").read_text()
-        self.assertIn("Hardware roadmaps", html)
+        self.assertIn("Machines vendors plan to build", html)
+        self.assertIn("Could break", html)
         self.assertIn("IonQ", html)
 
     def test_chart_page_has_full_chart(self):
         out = self.build(ROWS, STATUS, hw=HW)
         html = (out / "chart" / "index.html").read_text()
-        self.assertIn("Technical overview", html)
+        self.assertIn("Machines versus attacks", html)
         self.assertEqual(html.count('class="tl ov"'), 2)
         self.assertNotIn("<details", html)
 
@@ -358,7 +364,10 @@ class Build(unittest.TestCase):
         html = (out / "threats" / "bitcoin" / "index.html").read_text()
         self.assertIn('class="prog"', html)
         self.assertIn("<svg", html)
-        self.assertIn("How estimates have improved", html)
+        self.assertIn("How many qubits an attack needs, over time", html)
+        self.assertIn("down 85%", html)
+        self.assertIn("first estimate", html)
+        self.assertIn("Physical qubits needed", html)
 
     def test_inner_page_og_tags(self):
         out = self.build(ROWS, STATUS, hw=HW)
@@ -368,6 +377,31 @@ class Build(unittest.TestCase):
         t2 = Tags()
         t2.feed((out / "threats" / "bitcoin" / "index.html").read_text())
         self.assertIn("Bitcoin", t2.meta["og:title"])
+
+
+class Papers(unittest.TestCase):
+    def test_pct_label_never_rounds_up_to_a_false_100(self):
+        self.assertEqual(present.pct_label(0.846), "85%")
+        self.assertEqual(present.pct_label(0.998), "99.8%")
+
+    def test_one_row_per_paper_with_its_smallest_figures_and_the_drop_it_caused(self):
+        rows = [row("1.1", "ecdlp-256", "2020-01-01", physical_qubits=1000.0),
+                {**row("2.2", "ecdlp-256", "2021-01-01", physical_qubits=400.0), "id": "arxiv:2.2#0"},
+                {**row("2.2", "ecdlp-256", "2021-01-01", physical_qubits=300.0, logical_qubits=50.0), "id": "arxiv:2.2#1"},
+                row("3.3", "ecdlp-256", "2022-01-01", physical_qubits=350.0)]
+        out = present.paper_rows(rows, {"ecdlp-256"})
+        self.assertEqual([r["id"] for r in out], ["arxiv:3.3", "arxiv:2.2", "arxiv:1.1"])  # newest first, one per paper
+        by = {r["id"]: r for r in out}
+        self.assertEqual(by["arxiv:2.2"]["physical_qubits"], 300.0)
+        self.assertAlmostEqual(by["arxiv:2.2"]["phys_drop"], 0.7)
+        self.assertIsNone(by["arxiv:3.3"]["phys_drop"])  # 350 is not below the best so far (300)
+        self.assertIsNone(by["arxiv:1.1"]["phys_drop"])  # the first estimate has nothing to beat
+
+    def test_series_records_carry_the_drop(self):
+        pts = present.series([row("1.1", "rsa-2048", "2020-01-01", physical_qubits=1000.0),
+                              row("2.2", "rsa-2048", "2021-01-01", physical_qubits=250.0)], "rsa-2048")
+        self.assertIsNone(pts[0]["drop"])
+        self.assertAlmostEqual(pts[1]["drop"], 0.75)
 
 
 class Header(unittest.TestCase):

@@ -126,24 +126,64 @@ def dom_id(row_id: str) -> str:
     return "p-" + re.sub(r"[^a-z0-9]+", "-", str(row_id).lower()).strip("-")
 
 
-def series(rows, target):
-    """Plottable points for a target: physical-qubit estimates with a paper date, oldest first.
+def series(rows, target, metric="physical_qubits"):
+    """Plottable points for a target: estimates in one metric with a paper date, oldest first.
 
-    Each point gets `record` True if it set a new lowest value so far (the 'best known' staircase).
+    Each point gets `record` True if it set a new lowest value so far (the 'best known' staircase) and `drop` as the
+    fraction by which it beat the previous record (None for the first point or a non-record).
     """
     pts = []
     for r in rows:
-        if r.get("target") != target or r.get("physical_qubits") is None:
+        if r.get("target") != target or r.get(metric) is None:
             continue
         x = year_frac(r.get("published", ""))
         if x is not None:
-            pts.append({"row": r, "x": x, "y": r["physical_qubits"], "date": r["published"][:10]})
+            pts.append({"row": r, "x": x, "y": r[metric], "date": r["published"][:10]})
     pts.sort(key=lambda p: (p["x"], -p["y"]))
     best = None
     for p in pts:
         p["record"] = best is None or p["y"] < best
+        p["drop"] = (1 - p["y"] / best) if best is not None and p["record"] and best else None
         best = p["y"] if p["record"] else best
     return pts
+
+
+def pct_label(frac) -> str:
+    """0.846 -> '85%'. A drop of 99.5% or more keeps a decimal so it never reads as a false 100%."""
+    pct = frac * 100
+    return f"{pct:.1f}%" if pct >= 99.5 else f"{pct:.0f}%"
+
+
+def paper_rows(rows, targets):
+    """One row per paper for the given targets: the paper's smallest figure in each metric, newest first.
+
+    `phys_drop` and `log_drop` are the fractions by which that paper beat the best figure before it (None if it did not).
+    """
+    best = {}
+    for r in rows:
+        if r.get("target") not in targets:
+            continue
+        pid = r["id"].split("#")[0]
+        cur = best.setdefault(pid, {"id": pid, "url": r["url"], "title": r["title"], "published": r.get("published", ""),
+                                    "physical_qubits": None, "logical_qubits": None, "runtime": None})
+        for m in ("physical_qubits", "logical_qubits"):
+            if r.get(m) is not None and (cur[m] is None or r[m] < cur[m]):
+                cur[m] = r[m]
+                if m == "physical_qubits":
+                    cur["runtime"] = r.get("runtime")
+                elif cur["physical_qubits"] is None:
+                    cur["runtime"] = r.get("runtime")
+    out = sorted(best.values(), key=lambda r: r["published"])
+    for m, key in (("physical_qubits", "phys_drop"), ("logical_qubits", "log_drop")):
+        top = None
+        for r in out:
+            r[key] = None
+            if r[m] is None:
+                continue
+            if top is not None and r[m] < top:
+                r[key] = 1 - r[m] / top
+            top = r[m] if top is None else min(top, r[m])
+    return out[::-1]
 
 
 def headline(rows, target):
@@ -255,6 +295,14 @@ CONSEQUENCE = {
     "aes-128": "Not broken, only weakened: a quantum computer would need far too many steps in a row. Using AES-256 removes the concern.",
     "sha-256": "Not broken, only weakened: the attack needs an astronomically long chain of steps. Longer hash outputs remove the concern.",
 }
+
+# One line each, for a reader new to the topic. Shown collapsed on the front page.
+GLOSSARY = [
+    ("Qubit", "The unit of a quantum computer, like a bit in an ordinary one."),
+    ("Physical qubit", "A real qubit in the machine. They make mistakes, so attacks need many."),
+    ("Logical qubit", "A reliable qubit made by combining many physical ones. Attacks need fewer of these."),
+    ("Post-quantum", "New encryption built to resist quantum computers. NIST standardised the first schemes in 2024."),
+]
 
 # The countdown on the front page: what a newcomer cares about, in plain words. (title, what it covers, data targets).
 COUNTDOWN = [

@@ -68,3 +68,10 @@
   .cd .row{grid-template-columns:1fr;gap:0}.cd .row .who{padding-bottom:2px}.cd .track{border-left:0;height:48px}
   .cd .track .gl{display:none}
 }
+
+/* Glossary */
+.gloss{margin:14px 0 0;padding:12px 16px;background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius)}
+.gloss summary{cursor:pointer;font-size:14px;font-weight:650}
+.gloss dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px 24px;margin:10px 0 0}
+.gloss dt{font-size:13.5px;font-weight:650}
+.gloss dd{margin:2px 0 0;font-size:13px;line-height:1.45;color:var(--ink-dim)}
