@@ -106,24 +106,71 @@ class Pipeline(unittest.TestCase):
 
 
 class Retry(unittest.TestCase):
+    HW = {"pages": 5, "changed": 0, "applied": 0, "held": 0, "unavailable": 0, "errors": {}}
+
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
         pipeline.DATA = Path(self.tmp)
-
-    def test_idle_when_queue_is_empty_and_never_touches_models(self):
-        with mock.patch.object(llm, "call_chain", side_effect=AssertionError("models must not be called")):
-            self.assertTrue(pipeline.retry()["idle"])
-        self.assertFalse((Path(self.tmp) / "status.json").exists())  # does not overwrite the daily status
-
-    def test_processes_only_the_queue(self):
         (Path(self.tmp) / "gold").mkdir()
         (Path(self.tmp) / "gold" / "gold.jsonl").write_text("")
-        (Path(self.tmp) / "queue.json").write_text(json.dumps({"arxiv:9999.00001@1": {"item": item(1), "attempts": 1, "last_error": "x"}}))
+
+    def write(self, name, data):
+        (Path(self.tmp) / name).write_text(json.dumps(data))
+
+    def fresh_status(self, **extra):
+        import datetime
+        self.write("status.json", {"run_at": datetime.datetime.now(datetime.timezone.utc).isoformat(), "source_errors": {}, **extra})
+
+    def run_retry(self):
+        calls = {"run": [], "hw": 0}
+        pipe = pipeline
+
+        def fake_run(**kw):
+            calls["run"].append(kw)
+            return {"processed": 0}
+
+        def fake_hw():
+            calls["hw"] += 1
+            return self.HW
+        with mock.patch.object(pipe, "run", fake_run), mock.patch.object(pipe, "run_hardware", fake_hw), \
+                mock.patch.object(llm, "call_chain", side_effect=AssertionError("models must not be called here")):
+            return pipe.retry(), calls
+
+    def test_healthy_and_nothing_queued_only_rechecks_vendor_pages(self):
+        self.fresh_status()
+        out, calls = self.run_retry()
+        self.assertEqual((calls["run"], calls["hw"]), ([], 1))
+        self.assertEqual(out["reason"], "nothing queued")
+
+    def test_queue_only_processes_the_queue_without_fetching(self):
+        self.fresh_status()
+        self.write("queue.json", {"arxiv:9999.00001@1": {"item": item(1), "attempts": 1, "last_error": "x"}})
+        out, calls = self.run_retry()
+        self.assertEqual(calls["run"], [{"items": [], "fulltext": True}])  # items=[] means: do not fetch
+        self.assertEqual(calls["hw"], 1)
+
+    def test_fetch_errors_in_the_last_run_trigger_a_full_pass(self):
+        self.fresh_status(source_errors={"arxiv": "429"})
+        out, calls = self.run_retry()
+        self.assertEqual(calls["run"], [{"fulltext": True}])  # no items argument: fetch everything
+        self.assertIn("fetch errors", out["reason"])
+
+    def test_a_stale_main_run_triggers_a_full_pass(self):
+        self.write("status.json", {"run_at": "2020-01-01T00:00:00+00:00", "source_errors": {}})
+        out, calls = self.run_retry()
+        self.assertEqual(calls["run"], [{"fulltext": True}])
+        self.write("status.json", {})  # no status at all counts as stale too
+        self.assertEqual(self.run_retry()[1]["run"], [{"fulltext": True}])
+
+    def test_the_queue_really_is_processed_end_to_end(self):
+        self.fresh_status()
+        self.write("queue.json", {"arxiv:9999.00001@1": {"item": item(1), "attempts": 1, "last_error": "x"}})
         with mock.patch.object(llm, "call_chain", fake_chain()), mock.patch.object(pipeline, "canary", lambda: {"ok": True}), \
                 mock.patch.object(pipeline.sources, "fetch_all", side_effect=AssertionError("must not fetch")), \
-                mock.patch.object(pipeline.sources, "fetch_fulltext", return_value=""):
-            r = pipeline.retry()
-        self.assertEqual((r["processed"], r["queue_size"], r["auto_applied"]), (1, 0, 1))
+                mock.patch.object(pipeline.sources, "fetch_fulltext", return_value=""), \
+                mock.patch.object(pipeline, "run_hardware", return_value=self.HW):
+            out = pipeline.retry()
+        self.assertEqual((out["papers"]["processed"], out["papers"]["queue_size"], out["papers"]["auto_applied"]), (1, 0, 1))
 
 
 class Seed(unittest.TestCase):

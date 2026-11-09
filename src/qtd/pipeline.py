@@ -235,11 +235,36 @@ def seed():
     return run(items=items, max_auto=10**6, check_canary=False, fulltext=True)
 
 
+STALE_HOURS = 25  # the main run is daily; older than this means a run failed or lost its data
+
+
+def _hours_since(iso):
+    try:
+        return (dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(iso)).total_seconds() / 3600
+    except (TypeError, ValueError):
+        return float("inf")
+
+
 def retry():
-    """Re-check only the queued papers. Does nothing (no fetch, no model call) when the queue is empty."""
-    if not _load(DATA / "queue.json", {}):
-        return {"processed": 0, "queue_size": 0, "idle": True}
-    return run(items=[], fulltext=True)
+    """The frequent self-healing pass. Cheap when nothing is wrong.
+
+    - Papers: a full pass if the last main run reported fetch errors or is older than STALE_HOURS (a failed or lost
+      run); otherwise only the queued papers whose model calls failed.
+    - Vendor pages: always re-checked. Unchanged pages cost one download and no model call.
+    """
+    status = _load(DATA / "status.json", {})
+    queue = _load(DATA / "queue.json", {})
+    out = {}
+    if status.get("source_errors") or _hours_since(status.get("run_at")) > STALE_HOURS:
+        out["reason"] = "last main run had fetch errors or is stale: running a full pass"
+        out["papers"] = run(fulltext=True)
+    elif queue:
+        out["reason"] = "retrying queued papers"
+        out["papers"] = run(items=[], fulltext=True)
+    else:
+        out["reason"] = "nothing queued"
+    out["hardware"] = run_hardware()
+    return out
 
 
 MAX_HW_ROWS_PER_RUN = 25  # a burst larger than this is held for a person instead of applied
