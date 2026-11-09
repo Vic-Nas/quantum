@@ -135,13 +135,15 @@ class Run(unittest.TestCase):
             r = pipeline.run_hardware(items=[item()])
         self.assertEqual(r["applied"], 0)
 
-    def test_models_down_leaves_the_page_for_the_next_run(self):
+    def test_models_down_leaves_the_page_pending_until_it_succeeds(self):
         with mock.patch.object(llm, "call_chain", chain(fail=True)):
             r = pipeline.run_hardware(items=[item()])
         self.assertEqual((r["unavailable"], r["applied"]), (1, 0))
         self.assertEqual(self.read("hw_seen.json"), {})
+        self.assertEqual([p["id"] for p in self.read("hw_pending.json")], ["page:vendor.example/roadmap"])  # the frequent run retries this
         with mock.patch.object(llm, "call_chain", chain()):
             self.assertEqual(pipeline.run_hardware(items=[item()])["applied"], 1)
+        self.assertEqual(self.read("hw_pending.json"), [])  # cleared once it worked
 
 
 if __name__ == "__main__":

@@ -106,71 +106,80 @@ class Pipeline(unittest.TestCase):
 
 
 class Retry(unittest.TestCase):
-    HW = {"pages": 5, "changed": 0, "applied": 0, "held": 0, "unavailable": 0, "errors": {}}
+    """The frequent run must stay cheap: it may only repeat work that failed, and never do a full run's work."""
 
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
         pipeline.DATA = Path(self.tmp)
         (Path(self.tmp) / "gold").mkdir()
         (Path(self.tmp) / "gold" / "gold.jsonl").write_text("")
+        llm.set_run_budget(None)
+
+    def tearDown(self):
+        llm.set_run_budget(None)
 
     def write(self, name, data):
         (Path(self.tmp) / name).write_text(json.dumps(data))
 
-    def fresh_status(self, **extra):
-        import datetime
-        self.write("status.json", {"run_at": datetime.datetime.now(datetime.timezone.utc).isoformat(), "source_errors": {}, **extra})
-
     def run_retry(self):
-        calls = {"run": [], "hw": 0}
-        pipe = pipeline
+        calls = {"run": [], "hw": []}
 
         def fake_run(**kw):
             calls["run"].append(kw)
             return {"processed": 0}
 
-        def fake_hw():
-            calls["hw"] += 1
-            return self.HW
-        with mock.patch.object(pipe, "run", fake_run), mock.patch.object(pipe, "run_hardware", fake_hw), \
-                mock.patch.object(llm, "call_chain", side_effect=AssertionError("models must not be called here")):
-            return pipe.retry(), calls
+        def fake_hw(**kw):
+            calls["hw"].append(kw)
+            return {}
+        with mock.patch.object(pipeline, "run", fake_run), mock.patch.object(pipeline, "run_hardware", fake_hw), \
+                mock.patch.object(pipeline.sources, "fetch_all", side_effect=AssertionError("must never fetch papers")), \
+                mock.patch.object(pipeline.sources, "fetch_pages", side_effect=AssertionError("must never fetch pages unprompted")), \
+                mock.patch.object(llm, "call_chain", side_effect=AssertionError("no model call without something to retry")):
+            return pipeline.retry(), calls
 
-    def test_healthy_and_nothing_queued_only_rechecks_vendor_pages(self):
-        self.fresh_status()
+    def test_idle_when_nothing_failed(self):
         out, calls = self.run_retry()
-        self.assertEqual((calls["run"], calls["hw"]), ([], 1))
-        self.assertEqual(out["reason"], "nothing queued")
+        self.assertEqual((out, calls), ({"idle": True}, {"run": [], "hw": []}))
 
-    def test_queue_only_processes_the_queue_without_fetching(self):
-        self.fresh_status()
-        self.write("queue.json", {"arxiv:9999.00001@1": {"item": item(1), "attempts": 1, "last_error": "x"}})
+    def test_a_stale_or_error_ridden_status_does_not_turn_it_into_a_full_run(self):
+        self.write("status.json", {"run_at": "2020-01-01T00:00:00+00:00", "source_errors": {"arxiv": "429"}})
         out, calls = self.run_retry()
-        self.assertEqual(calls["run"], [{"items": [], "fulltext": True}])  # items=[] means: do not fetch
-        self.assertEqual(calls["hw"], 1)
+        self.assertEqual((out, calls), ({"idle": True}, {"run": [], "hw": []}))  # fetch problems wait for the daily run
 
-    def test_fetch_errors_in_the_last_run_trigger_a_full_pass(self):
-        self.fresh_status(source_errors={"arxiv": "429"})
+    def test_queue_is_capped_never_fetches_and_gets_a_call_budget(self):
+        self.write("queue.json", {f"arxiv:9.{n}@1": {"item": item(n), "attempts": 1, "last_error": "x"} for n in range(1, 6)})
         out, calls = self.run_retry()
-        self.assertEqual(calls["run"], [{"fulltext": True}])  # no items argument: fetch everything
-        self.assertIn("fetch errors", out["reason"])
+        self.assertEqual(calls["run"], [{"items": [], "fulltext": True, "limit": pipeline.MAX_RETRY_PAPERS}])
+        self.assertEqual(calls["hw"], [])
+        self.assertEqual(llm._run_budget, pipeline.RETRY_CALL_BUDGET)
 
-    def test_a_stale_main_run_triggers_a_full_pass(self):
-        self.write("status.json", {"run_at": "2020-01-01T00:00:00+00:00", "source_errors": {}})
+    def test_only_failed_vendor_pages_are_retried(self):
+        pend = [{"id": "page:x/y", "url": "https://ionq.com/roadmap", "actor": "IonQ"}]
+        self.write("hw_pending.json", pend)
         out, calls = self.run_retry()
-        self.assertEqual(calls["run"], [{"fulltext": True}])
-        self.write("status.json", {})  # no status at all counts as stale too
-        self.assertEqual(self.run_retry()[1]["run"], [{"fulltext": True}])
+        self.assertEqual((calls["run"], calls["hw"]), ([], [{"only": pend}]))
 
-    def test_the_queue_really_is_processed_end_to_end(self):
-        self.fresh_status()
-        self.write("queue.json", {"arxiv:9999.00001@1": {"item": item(1), "attempts": 1, "last_error": "x"}})
+    def test_real_requests_are_capped_but_cache_hits_are_free(self):
+        llm.CACHE = Path(self.tmp) / "cache"
+        llm.set_run_budget(3)
+        for _ in range(3):
+            llm._spend("gemini-3.5-flash-lite")
+        with self.assertRaises(llm.LLMError):
+            llm._spend("gemini-3.5-flash-lite")
+        # a cached answer needs no request, so it is served even when the budget is spent
+        import hashlib
+        key = hashlib.sha256(json.dumps(["m", "p", {}], sort_keys=True).encode()).hexdigest()
+        (llm.CACHE / f"{key}.json").write_text('{"a": 1}')
+        self.assertEqual(llm.generate("m", "p", {}), {"a": 1})
+
+    def test_the_queue_really_is_processed_end_to_end_within_the_cap(self):
+        self.write("queue.json", {f"arxiv:9999.{n:05d}@1": {"item": item(n), "attempts": 1, "last_error": "x"} for n in range(1, 5)})
         with mock.patch.object(llm, "call_chain", fake_chain()), mock.patch.object(pipeline, "canary", lambda: {"ok": True}), \
                 mock.patch.object(pipeline.sources, "fetch_all", side_effect=AssertionError("must not fetch")), \
-                mock.patch.object(pipeline.sources, "fetch_fulltext", return_value=""), \
-                mock.patch.object(pipeline, "run_hardware", return_value=self.HW):
+                mock.patch.object(pipeline.sources, "fetch_fulltext", return_value=""):
             out = pipeline.retry()
-        self.assertEqual((out["papers"]["processed"], out["papers"]["queue_size"], out["papers"]["auto_applied"]), (1, 0, 1))
+        self.assertEqual(out["papers"]["processed"], pipeline.MAX_RETRY_PAPERS)  # 4 queued, only 2 taken
+        self.assertEqual(out["papers"]["queue_size"], 2)
 
 
 class Seed(unittest.TestCase):

@@ -3,7 +3,7 @@ name: daily-update
 on:
   schedule:
     - cron: "17 5 * * *"    # main run once a day: fetch new papers, extract, verify, publish
-    - cron: "7 */2 * * *"   # every 2 hours: self-healing pass (queued papers, vendor pages, a full pass if the last run failed)
+    - cron: "7 */2 * * *"   # every 2 hours: ONLY repeats work that failed because the models were down; capped, saves Gemini quota
   workflow_dispatch:         # manual "Run workflow" button: same as the main daily run
   push:                      # design, data or README changes republish only (no model calls)
     branches: [main]

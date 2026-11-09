@@ -235,35 +235,24 @@ def seed():
     return run(items=items, max_auto=10**6, check_canary=False, fulltext=True)
 
 
-STALE_HOURS = 25  # the main run is daily; older than this means a run failed or lost its data
-
-
-def _hours_since(iso):
-    try:
-        return (dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(iso)).total_seconds() / 3600
-    except (TypeError, ValueError):
-        return float("inf")
+MAX_RETRY_PAPERS = 2     # queued papers a frequent run may take
+RETRY_CALL_BUDGET = 60   # real API requests a frequent run may make in total
 
 
 def retry():
-    """The frequent self-healing pass. Cheap when nothing is wrong.
-
-    - Papers: a full pass if the last main run reported fetch errors or is older than STALE_HOURS (a failed or lost
-      run); otherwise only the queued papers whose model calls failed.
-    - Vendor pages: always re-checked. Unchanged pages cost one download and no model call.
-    """
-    status = _load(DATA / "status.json", {})
-    queue = _load(DATA / "queue.json", {})
+    """The frequent pass. It exists to limit Gemini use, so it ONLY repeats work that already failed because the
+    models were unavailable: queued papers and vendor pages whose extraction failed. It never fetches arXiv, never
+    looks for new papers and never checks vendor pages for changes. Those wait for the daily run."""
     out = {}
-    if status.get("source_errors") or _hours_since(status.get("run_at")) > STALE_HOURS:
-        out["reason"] = "last main run had fetch errors or is stale: running a full pass"
-        out["papers"] = run(fulltext=True)
-    elif queue:
-        out["reason"] = "retrying queued papers"
-        out["papers"] = run(items=[], fulltext=True)
-    else:
-        out["reason"] = "nothing queued"
-    out["hardware"] = run_hardware()
+    if _load(DATA / "queue.json", {}):
+        llm.set_run_budget(RETRY_CALL_BUDGET)
+        out["papers"] = run(items=[], fulltext=True, limit=MAX_RETRY_PAPERS)
+    pending = _load(DATA / "hw_pending.json", [])
+    if pending:
+        llm.set_run_budget(RETRY_CALL_BUDGET)
+        out["hardware"] = run_hardware(only=pending)
+    if not out:
+        out["idle"] = True
     return out
 
 
@@ -274,7 +263,7 @@ def _hw_key(v: dict):
     return (v.get("actor"), v.get("target_year"), v.get("physical_qubits"), v.get("logical_qubits"))
 
 
-def run_hardware(items: list | None = None, dry: bool = False):
+def run_hardware(items: list | None = None, dry: bool = False, only: list | None = None):
     """Fetch the configured vendor pages, extract roadmap claims (qubit count plus year) with two models,
     verify every quote against the page text, and append the claims both models agree on.
 
@@ -283,12 +272,13 @@ def run_hardware(items: list | None = None, dry: bool = False):
     errors = {}
     if items is None:
         items = []
-        for src in _load(DATA / "hardware_sources.json", []):
+        for src in (only if only is not None else _load(DATA / "hardware_sources.json", [])):
             try:
                 items += sources.fetch_pages([src])
             except RuntimeError as e:
                 errors[src["url"]] = str(e)[:120]
     seen = _load(DATA / "hw_seen.json", {})
+    pending = {p["id"]: p for p in _load(DATA / "hw_pending.json", [])}  # pages whose models failed: the frequent run retries them
     rows = _load(DATA / "hardware.json", [])
     known = {_hw_key(r) for r in rows}
     summary = {"pages": len(items), "changed": 0, "applied": 0, "held": 0, "unavailable": 0, "errors": errors}
@@ -314,9 +304,11 @@ def run_hardware(items: list | None = None, dry: bool = False):
                 if any_agrees(e["values"], v2["ok_estimates"]):
                     found.append({"values": e["values"], "quote": e["quote"], "models": {"primary": m1, "secondary": m2}})
         if not complete:
-            summary["unavailable"] += 1  # leave the page unseen so the next run tries again
+            summary["unavailable"] += 1  # leave the page unseen so a later run tries again
+            pending[it["id"]] = {"id": it["id"], "url": it["url"], "actor": it["actor"]}
             continue
         seen[it["id"]] = it["version"]
+        pending.pop(it["id"], None)
         for n, f in enumerate(dedupe_estimates(found)):
             if _hw_key(f["values"]) in known:
                 continue
@@ -335,4 +327,5 @@ def run_hardware(items: list | None = None, dry: bool = False):
     if not dry:
         (DATA / "hardware.json").write_text(json.dumps(rows + new, indent=1))
         (DATA / "hw_seen.json").write_text(json.dumps(seen, indent=1))
+        (DATA / "hw_pending.json").write_text(json.dumps(list(pending.values()), indent=1))
     return summary

@@ -55,6 +55,14 @@ LIMITS = {"gemini-3.5-flash-lite": (4.6, 500), "gemini-3.1-flash-lite": (4.6, 50
 DEFAULT_LIMIT = (13.0, 20)  # 5 RPM / 20 RPD models
 BUDGET_FRACTION = 0.8       # never spend more than this share of the daily quota
 _last_call = {}
+_run_budget = None  # a cap on real API requests in this process (None = no cap); the frequent retry runs set one
+_run_calls = 0
+
+
+def set_run_budget(n):
+    """Cap the real API requests this process may make. Cache hits are free and not counted."""
+    global _run_budget, _run_calls
+    _run_budget, _run_calls = n, 0
 
 
 class LLMError(RuntimeError):
@@ -67,6 +75,10 @@ def _today() -> str:
 
 def _spend(model: str) -> None:
     """Count one request against today's budget or raise."""
+    global _run_calls
+    if _run_budget is not None and _run_calls >= _run_budget:
+        raise LLMError(f"this run's cap of {_run_budget} API requests is used up")
+    _run_calls += 1
     path = CACHE / "usage.json"
     usage = json.loads(path.read_text()) if path.exists() else {}
     day = usage.setdefault(_today(), {})
