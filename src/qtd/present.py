@@ -12,11 +12,17 @@ TARGET_LABELS = {
     "pairing-bn254": ("BN254", ""),
 }
 _CTRL = re.compile(r"[\x00-\x1f\x7f]+")
+# Em dashes (and spaced en dashes or ' -- ') read as an AI tic. Replace with '; '. Unspaced en dashes (ranges like 2019-2026) stay.
+_DASH = re.compile(r"\s*\u2014\s*|\s+\u2013\s+|\s+--+\s+")
+
+
+def strip_dashes(text) -> str:
+    return _DASH.sub("; ", str(text or ""))
 
 
 def clean(text, limit=None) -> str:
     """Strip control characters and newlines from untrusted text and optionally truncate."""
-    t = re.sub(r"\s+", " ", _CTRL.sub(" ", str(text or ""))).strip()
+    t = re.sub(r"\s+", " ", _CTRL.sub(" ", strip_dashes(text))).strip()
     if limit and len(t) > limit:
         t = t[: limit - 1].rstrip() + "…"
     return t

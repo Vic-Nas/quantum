@@ -2,7 +2,7 @@
 import html
 import math
 
-from .present import dom_id, short_count
+from .present import clean, dom_id, short_count
 
 TICKS = [1e3, 1e4, 1e5, 1e6, 1e7, 1e8]
 
@@ -48,7 +48,7 @@ def timeline_svg(points, width, height, label):
     for p in points:
         cx, cy = px(p["x"]), py(p["y"])
         rid = dom_id(p["row"]["id"])
-        aria = f'{short_count(p["y"])} qubits, {p["date"]}, {p["row"]["title"][:80]}'
+        aria = f'{short_count(p["y"])} qubits, {p["date"]}, {clean(p["row"]["title"], 80)}'
         out.append(f'<a class="dot{" rec" if p["record"] else ""}" href="#{rid}" data-id="{rid}" aria-label="{_e(aria)}">'
                    f'<circle class="hit" cx="{cx:.1f}" cy="{cy:.1f}" r="15"/><circle class="pt" cx="{cx:.1f}" cy="{cy:.1f}" r="6.5"/></a>')
     first, last = points[0], [p for p in points if p["record"]][-1]

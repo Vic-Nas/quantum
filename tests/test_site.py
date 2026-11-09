@@ -68,6 +68,15 @@ class Present(unittest.TestCase):
         self.assertAlmostEqual(h["drop_pct"], 99.8, places=1)
         self.assertIsNone(present.headline(ROWS, "rsa-4096"))
 
+    def test_strip_dashes(self):
+        em, en = "\u2014", "\u2013"
+        self.assertEqual(present.strip_dashes(f"fast {em} but costly"), "fast; but costly")
+        self.assertEqual(present.strip_dashes(f"fast{em}but costly"), "fast; but costly")
+        self.assertEqual(present.strip_dashes(f"fast {en} but costly"), "fast; but costly")
+        self.assertEqual(present.strip_dashes("fast -- but costly"), "fast; but costly")
+        self.assertEqual(present.strip_dashes(f"2019{en}2026 and well-known"), f"2019{en}2026 and well-known")
+        self.assertEqual(present.clean(f"a {em} b\n"), "a; b")
+
     def test_clean_and_ids(self):
         self.assertEqual(present.paper_id("arxiv:2609.05625#4"), "arXiv 2609.05625")
         self.assertEqual(present.dom_id("arxiv:2609.05625#4"), "p-arxiv-2609-05625-4")
@@ -167,16 +176,36 @@ class Build(unittest.TestCase):
         self.assertNotIn("<style", html)
 
     def test_hostile_text_is_escaped(self):
-        bad = dict(ROWS[0], title='<img src=x onerror=alert(1)> "t"', quote="<script>alert(1)</script>")
+        bad = dict(ROWS[0], title='<img src=x onerror=alert(1)> "t" \u2014 x', quote="<script>alert(1)</script> fast \u2014 but")
         out = self.build([bad], {"run_at": "2026-11-09T00:20:03+00:00"},
                          [{"tier": "B", "url": "https://arxiv.org/abs/1", "title": "<b>x</b>", "reason": "<i>r</i>"},
                           {"id": "a:1", "tier": "B", "url": "https://arxiv.org/abs/2", "title": "dup", "reason": "failed verification"},
                           {"id": "a:1", "tier": "A", "url": "https://arxiv.org/abs/2", "title": "dup", "reason": "ok"}])
         html = (out / "index.html").read_text()
         self.assertNotIn("<script>alert", html)
+        self.assertNotIn("\u2014", html)  # an em dash in a quote never reaches the page
+        self.assertIn("fast; but", html)
         self.assertNotIn("<img src=x", html)
         self.assertNotIn("<b>x</b>", html)
         self.assertNotIn(">dup<", html)  # a later confirmed run removes the paper from the radar
+
+    def test_queued_paper_is_described_as_waiting_not_unconfirmed(self):
+        d, out = Path(tempfile.mkdtemp()), Path(tempfile.mkdtemp()) / "site"
+        (d / "attacks.json").write_text(json.dumps(ROWS))
+        (d / "queue.json").write_text(json.dumps({"arxiv:9.9@seed": {"item": {}, "attempts": 1, "last_error": "x"}}))
+        (d / "candidates").mkdir()
+        (d / "candidates" / "2026-11.jsonl").write_text(json.dumps(
+            {"id": "arxiv:9.9", "tier": "B", "url": "https://arxiv.org/abs/9.9", "title": "queued paper", "reason": "second opinion"}))
+        import os
+        cwd = os.getcwd()
+        os.chdir(ROOT)
+        try:
+            site.build(out, d)
+        finally:
+            os.chdir(cwd)
+        html = (out / "index.html").read_text()
+        self.assertIn("1 paper is waiting to be re-checked", html)
+        self.assertNotIn(">queued paper<", html)  # not listed as 'unconfirmed' while it is queued
 
     def test_states(self):
         empty = (self.build([], None) / "index.html").read_text()

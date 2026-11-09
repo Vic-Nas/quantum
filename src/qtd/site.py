@@ -158,13 +158,18 @@ def build(out="site", data="data"):
         why = "; ".join(f"{k}: {clean(v, 80)}" for k, v in problems) or "the safety check failed, so new papers are held back"
         alert = f'<p class="alert" role="alert"><strong>The last update had a problem.</strong> {e(why)}</p>'
     present = sorted({r.get("target") for r in rows}, key=lambda t: (TARGET_ORDER.index(t) if t in TARGET_ORDER else 99, str(t)))
-    radar = radar_rows(data / "candidates")
+    queued = json.loads((data / "queue.json").read_text()) if (data / "queue.json").exists() else {}
+    queued_ids = {k.rsplit("@", 1)[0] for k in queued}
+    radar = [r for r in radar_rows(data / "candidates") if r.get("id") not in queued_ids]
     radar_html = ""
-    if radar:
-        radar_html = (f'<details class="radar"><summary>Found but not confirmed ({len(radar)})</summary><p class="dim">Nothing is waiting on these. '
-                      "They never change the charts and stay listed so nothing is hidden.</p><ul>" + "".join(
+    if radar or queued:
+        waiting = (f'<p class="dim">{len(queued)} paper{"s are" if len(queued) != 1 else " is"} waiting to be re-checked '
+                   "because the preferred checking model was unavailable. It is retried automatically.</p>") if queued else ""
+        listed = ("<p class=\"dim\">Nothing is waiting on the papers below. They never change the charts and stay listed so nothing is hidden.</p><ul>" + "".join(
                           f'<li><a href="{e(r["url"])}">{e(clean(r["title"], 100))}</a> <span class="dim">{e(plain_reason(r.get("reason")))}</span></li>'
-                          for r in radar) + "</ul></details>")
+                          for r in radar) + "</ul>") if radar else ""
+        radar_html = (f'<details class="radar"><summary>Found but not confirmed ({len(radar)}'
+                      f'{f", {len(queued)} waiting" if queued else ""})</summary>{waiting}{listed}</details>')
     body = "".join(target_section(rows, t) for t in present) if rows else (
         '<p class="empty">No verified estimates yet. The first update has not stored any.</p>')
     updated = date_label(as_of) or "not yet"

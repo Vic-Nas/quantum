@@ -104,6 +104,29 @@ class Pipeline(unittest.TestCase):
         self.assertEqual(r["counts"]["drop"], 1)
 
 
+class SourceText(unittest.TestCase):
+    def test_result_stated_only_in_the_title_verifies(self):
+        from qtd import stages
+        from qtd.verify import verify
+        it = {"title": "How to factor 2048 bit RSA integers in 8 hours using 20 million noisy qubits",
+              "text": "We significantly reduce the cost of factoring."}
+        ex = {"kind": "attack", "estimates": [{"quote": it["title"] + ".",  # the model copies the sentence with its period
+                                               "fields": {"target": "2048 bit RSA", "physical_qubits": "20 million", "runtime": "8 hours"}}]}
+        v = verify(ex, stages.source_text(it))
+        self.assertTrue(v["ok_estimates"], v["estimates"])
+        self.assertEqual(v["ok_estimates"][0]["values"]["physical_qubits"], 2e7)
+
+
+class Dedupe(unittest.TestCase):
+    def test_title_and_abstract_quotes_of_one_result_collapse(self):
+        a = {"values": {"target": "rsa-2048", "physical_qubits": 1e6}}
+        b = {"values": {"target": "rsa-2048", "physical_qubits": 1e6, "runtime": 168}}
+        c = {"values": {"target": "ecdlp-256", "physical_qubits": 1e6}}
+        d = {"values": {"target": "rsa-2048", "physical_qubits": 5e5}}
+        self.assertEqual(pipeline.dedupe_estimates([a, b, c, d]), [b, c, d])
+        self.assertEqual(len(pipeline.dedupe_estimates([a, dict(a)])), 1)  # exact duplicates keep one
+
+
 class Chain(unittest.TestCase):
     def test_falls_through_and_reports_model(self):
         calls = []

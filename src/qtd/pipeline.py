@@ -19,7 +19,24 @@ ROWS = {"attack": "attacks.json", "hardware": "hardware.json"}
 
 
 def _verified(extraction, item):
-    return verify(extraction, f"{item['title']} {item['text']}", sources.is_allowlisted(item["url"]))
+    return verify(extraction, stages.source_text(item), sources.is_allowlisted(item["url"]))
+
+
+def dedupe_estimates(ests: list) -> list:
+    """Drop an estimate whose values are all contained in a richer estimate of the same paper.
+
+    A result can be quoted from both the title and the abstract; the richer one (more fields) wins.
+    """
+    keep = []
+    for i, a in enumerate(ests):
+        av = a["values"]
+        dominated = any(
+            j != i and bv.get("target") == av.get("target") and all(bv.get(k) == v for k, v in av.items())
+            and (len(bv) > len(av) or (len(bv) == len(av) and j < i))
+            for j, b in enumerate(ests) for bv in [b["values"]])
+        if not dominated:
+            keep.append(a)
+    return keep
 
 
 def process(item: dict, rows: list, use_llm: bool) -> dict:
@@ -65,6 +82,7 @@ def process(item: dict, rows: list, use_llm: bool) -> dict:
             tier, why = "B", "second model is the same family as the first"
         rec["estimates"].append({"kind": v1["kind"], "values": e["values"], "quote": e["quote"], "tier": tier,
                                  "reason": why, "regex_agrees": e["ok"] and any_agrees(e["values"], rx_v["ok_estimates"])})
+    rec["estimates"] = dedupe_estimates(rec["estimates"])
     order = {"A": 0, "B": 1, "drop": 2}
     best = min(rec["estimates"], key=lambda x: order[x["tier"]], default=None)
     rec["tier"], rec["reason"] = (best["tier"], best["reason"]) if best else ("drop", "no estimates")
@@ -81,11 +99,10 @@ def canary(n: int = 2) -> dict:
     try:
         for g in picks:
             ex, _ = llm.call_chain("primary", lambda mod: llm.generate(
-                mod, stages.EXTRACT_PROMPT.format(title=g["title"], text=g["text"]), stages.EXTRACT_SCHEMA,
-                use_cache=False))
+                mod, stages.extract_prompt(g), stages.EXTRACT_SCHEMA, use_cache=False))
             ests = [{"quote": e.get("quote", ""), "fields": {f["name"]: f["value"] for f in e.get("fields", [])}}
                     for e in ex.get("estimates", [])]
-            v = verify({"kind": ex.get("kind"), "estimates": ests}, f"{g['title']} {g['text']}")
+            v = verify({"kind": ex.get("kind"), "estimates": ests}, stages.source_text(g))
             for want in g["estimates"]:
                 from .evaluate import _match
                 if not any(_match(e["values"], want) for e in v["ok_estimates"]):

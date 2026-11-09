@@ -44,7 +44,7 @@ def _score(method, gold, fn):
         except llm.LLMError:
             s["errors"] += 1
             continue
-        v = verify(ex, f"{g['title']} {g['text']}")
+        v = verify(ex, stages.source_text(g))
         acc = [e["values"] for e in v["ok_estimates"]]
         outs[g["id"]] = v["ok_estimates"]
         if not g["relevant"]:

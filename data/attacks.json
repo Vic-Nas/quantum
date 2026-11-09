@@ -18,7 +18,25 @@
   "regex_agrees": true
  },
  {
-  "id": "arxiv:2609.05625#1",
+  "id": "arxiv:1905.09749#1",
+  "kind": "attack",
+  "target": "rsa-2048",
+  "physical_qubits": 20000000.0,
+  "runtime": 8.0,
+  "quote": "How to factor 2048 bit RSA integers in 8 hours using 20 million noisy qubits.",
+  "url": "http://arxiv.org/abs/1905.09749v3",
+  "title": "How to factor 2048 bit RSA integers in 8 hours using 20 million noisy qubits",
+  "published": "2019-05-23",
+  "added": "2026-11-09",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemma-4-31b-it"
+  },
+  "verification": "auto: verifier + two model families agree",
+  "regex_agrees": true
+ },
+ {
+  "id": "arxiv:2609.05625#2",
   "kind": "attack",
   "target": "ecdlp-256",
   "physical_qubits": 19397.0,
@@ -36,7 +54,7 @@
   "regex_agrees": false
  },
  {
-  "id": "arxiv:2505.15917#2",
+  "id": "arxiv:2505.15917#3",
   "kind": "attack",
   "target": "rsa-2048",
   "physical_qubits": 1000000.0,
@@ -54,12 +72,12 @@
   "regex_agrees": true
  },
  {
-  "id": "arxiv:2610.37839#3",
+  "id": "arxiv:2610.37839#4",
   "kind": "attack",
   "target": "rsa-2048",
-  "physical_qubits": 23000.0,
+  "physical_qubits": 22593.0,
   "runtime": 75.36,
-  "quote": "factoring RSA-2048, the configuration we compile in full, requires about 23 000 cat qubits and 3.14 days.",
+  "quote": "Shor's algorithm compiled on cat qubits: 22 593 qubits for RSA-2048 in 3.14 days.",
   "url": "http://arxiv.org/abs/2610.37839v1",
   "title": "Shor's algorithm compiled on cat qubits: 22 593 qubits for RSA-2048 in 3.14 days",
   "published": "2026-10-27",
@@ -72,7 +90,7 @@
   "regex_agrees": true
  },
  {
-  "id": "arxiv:2610.37839#4",
+  "id": "arxiv:2610.37839#5",
   "kind": "attack",
   "target": "ecdlp-256",
   "physical_qubits": 30000.0,
@@ -90,7 +108,7 @@
   "regex_agrees": false
  },
  {
-  "id": "arxiv:2610.37839#5",
+  "id": "arxiv:2610.37839#6",
   "kind": "attack",
   "target": "rsa-2048",
   "physical_qubits": 611000.0,
@@ -108,7 +126,7 @@
   "regex_agrees": true
  },
  {
-  "id": "arxiv:2610.37839#6",
+  "id": "arxiv:2610.37839#7",
   "kind": "attack",
   "target": "rsa-2048",
   "physical_qubits": 45000.0,
@@ -125,7 +143,7 @@
   "regex_agrees": false
  },
  {
-  "id": "arxiv:2302.06639#7",
+  "id": "arxiv:2302.06639#8",
   "kind": "attack",
   "target": "ecdlp-256",
   "physical_qubits": 126133.0,

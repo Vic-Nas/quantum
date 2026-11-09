@@ -94,6 +94,8 @@ class Verify(unittest.TestCase):
     def test_agree(self):
         self.assertTrue(agree({"target": "x", "a": 1.0}, {"target": "x", "a": 1.0}))
         self.assertFalse(agree({"target": "x", "a": 1.0}, {"target": "x", "a": 2.0}))
+        self.assertTrue(agree({"target": "x", "q": 22593.0, "r": 75.36}, {"target": "x", "q": 23000.0, "r": 75.36}))
+        self.assertFalse(agree({"target": "x", "q": 22593.0}, {"target": "x", "q": 27000.0}))  # 20% apart is a different result
         self.assertFalse(agree({"a": 1.0}, {"a": 1.0}))
         self.assertFalse(agree({"target": "x", "a": 1.0}, {"target": "x", "b": 2.0}))
         self.assertFalse(agree({"target": "x"}, {"target": "x"}))

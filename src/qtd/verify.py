@@ -3,8 +3,11 @@ from .schema import CORE, FIELDS, MAX_QUOTE
 from .textutil import all_targets, canonical_target, norm, numbers_in, parse_hours, parse_number
 
 
-def _close(a, b):
-    return abs(a - b) <= 1e-9 * max(1.0, abs(a), abs(b))
+def _close(a, b, rel=1e-9):
+    return abs(a - b) <= rel * max(1.0, abs(a), abs(b))
+
+
+AGREE_TOLERANCE = 0.03  # a title may say 22,593 where the abstract says "about 23,000": same result
 
 
 def verify_estimate(kind: str, est: dict, src: str, allowlisted: bool = True) -> dict:
@@ -62,7 +65,7 @@ def agree(a: dict, b: dict) -> bool:
     for k in shared:
         x, y = a[k], b[k]
         if isinstance(x, float) and isinstance(y, float):
-            if not _close(x, y):
+            if not _close(x, y, AGREE_TOLERANCE):
                 return False
         elif x != y:
             return False

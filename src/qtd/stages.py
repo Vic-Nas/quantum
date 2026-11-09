@@ -1,5 +1,6 @@
 """Model stages. Models only classify and quote; they never produce dates or headline data."""
 from . import llm
+from .present import strip_dashes
 
 COARSE_SCHEMA = {"type": "OBJECT", "properties": {
     "relevant": {"type": "BOOLEAN"}, "reason": {"type": "STRING"}}, "required": ["relevant", "reason"]}
@@ -39,11 +40,24 @@ TEXT: {text}"""
 
 
 def coarse(item: dict, model: str) -> dict:
-    return llm.generate(model, COARSE_PROMPT.format(title=item["title"], text=item["text"]), COARSE_SCHEMA)
+    out = llm.generate(model, COARSE_PROMPT.format(title=item["title"], text=item["text"]), COARSE_SCHEMA)
+    if isinstance(out.get("reason"), str):  # free text written by a model: keep dashes out of it
+        out["reason"] = strip_dashes(out["reason"])
+    return out
+
+
+def source_text(item: dict) -> str:
+    """The exact text the model reads and the verifier checks quotes against. The title is included
+    because some papers state their result only in the title."""
+    return f"{item['title']}. {item['text']}"
+
+
+def extract_prompt(item: dict) -> str:
+    return EXTRACT_PROMPT.format(title=item["title"], text=source_text(item))
 
 
 def extract(item: dict, model: str) -> dict:
-    out = llm.generate(model, EXTRACT_PROMPT.format(title=item["title"], text=item["text"]), EXTRACT_SCHEMA)
+    out = llm.generate(model, extract_prompt(item), EXTRACT_SCHEMA)
     ests = [{"quote": e.get("quote", ""), "fields": {f["name"]: f["value"] for f in e.get("fields", [])}}
             for e in out.get("estimates", [])]
     return {"kind": out.get("kind", "none"), "estimates": ests}
