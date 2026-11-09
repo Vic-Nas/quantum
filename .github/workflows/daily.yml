@@ -5,10 +5,11 @@ on:
     - cron: "17 5 * * *"    # main run once a day: fetch new papers, extract, verify, publish
     - cron: "7 */2 * * *"   # every 2 hours: only re-checks queued papers (idle when the queue is empty)
   workflow_dispatch:         # manual "Run workflow" button: same as the main daily run
-  push:                      # design or README changes republish only (no model calls)
+  push:                      # design, data or README changes republish only (no model calls)
     branches: [main]
     paths:
       - "web/**"
+      - "data/**"
       - "README.md"
       - "src/qtd/site.py"
       - "src/qtd/present.py"
