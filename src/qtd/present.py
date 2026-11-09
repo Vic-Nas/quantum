@@ -86,6 +86,16 @@ def short_count(n) -> str:
     return f"{n:,.0f}"
 
 
+def year_label(year, month=None) -> str:
+    """'2028' or 'Mar 2028' when month precision is available."""
+    y = int(year)
+    if month is not None:
+        m = int(month)
+        if 1 <= m <= 12:
+            return f"{_MONTHS[m - 1]} {y}"
+    return str(y)
+
+
 def date_label(iso: str, short: bool = False) -> str:
     """'2026-10-27' -> '27 Oct 2026' (or 'Oct 2026' when short)."""
     try:

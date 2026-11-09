@@ -1,9 +1,10 @@
-/* Front page: a short hero and a countdown that fits one screen. The evidence (chart + sources) opens as an overlay. */
+/* Front page: countdown bars, then one detail card per threat, then a collapsed technical chart. */
 .page{padding-bottom:20px}
 .hero{padding:16px 0 10px}
 .hero h1{margin:0;font-size:clamp(24px,2.9vw,34px);line-height:1.1;font-weight:650;letter-spacing:-.03em}
 .lede{margin:5px 0 0;font-size:14.5px;line-height:1.4;color:var(--ink-dim)}
 
+/* Countdown bars */
 .cd{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);box-shadow:var(--shadow);padding:4px 20px 8px}
 .cd .axis,.cd .row{display:grid;grid-template-columns:minmax(210px,33%) 1fr;gap:0 20px;width:100%}
 .cd .axis{padding-top:8px}
@@ -11,7 +12,7 @@
 .cd .axis .track{height:22px}
 .cd .axis .track::before{content:"Today";position:absolute;left:6px;top:0;font-size:12px;color:var(--ink-dim)}
 .cd .yr{position:absolute;top:0;transform:translateX(-50%);font-size:12.5px;font-weight:600;color:var(--ink-dim);font-variant-numeric:tabular-nums}
-.cd .row{align-items:center;min-height:58px;padding:0;border:0;border-top:1px solid var(--rule);background:none;text-align:left;font:inherit;color:inherit;cursor:pointer;
+.cd .row{align-items:center;min-height:58px;padding:0;border:0;border-top:1px solid var(--rule);background:none;text-align:left;font:inherit;color:inherit;cursor:pointer;text-decoration:none;
   transition:background .12s}
 .cd .row:hover,.cd .row:focus-visible{background:var(--hover)}
 .cd .row.first{min-height:78px}
@@ -29,25 +30,38 @@
 .cd .safe{position:absolute;left:14px;top:50%;transform:translateY(-50%);padding:6px 14px;border-radius:999px;background:rgb(29 122 62/.12);
   color:var(--ok);font-size:13.5px;font-weight:600;white-space:nowrap}
 .cd .foot{margin:6px 0 0;padding-top:7px;border-top:1px solid var(--rule);font-size:12.5px;color:var(--ink-dim)}
-.cd .more{border:0;background:none;padding:0;margin-left:6px;font:inherit;font-weight:600;color:var(--link);cursor:pointer}
-.cd .more:hover{text-decoration:underline}
 
-/* the evidence: inline without JS, an overlay with JS */
-.evidence{margin-top:22px}
-.sheet{background:var(--paper)}
-.sheethead{display:flex;align-items:center;justify-content:space-between}
-.sheethead h2{margin:0;font-size:20px;letter-spacing:-.02em}
-.evidence .sub{margin:4px 0 0;font-size:13.5px}
-.x{display:none}
-.js .evidence{display:none;position:fixed;inset:0;z-index:20;margin:0;overflow:auto;padding:3vh 3vw;background:rgb(26 24 19/.5)}
-.js .evidence.open{display:block}
-.js .sheet{max-width:1160px;margin:0 auto;padding:18px 22px 22px;border-radius:14px;box-shadow:0 20px 60px rgb(26 24 19/.35)}
-.js .x{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border:1px solid var(--line-strong);border-radius:var(--radius-sm);
-  background:var(--surface);font-size:22px;line-height:1;cursor:pointer;color:var(--ink)}
-.js .x:hover{border-color:var(--accent);color:var(--accent)}
-body.lock{overflow:hidden}
+/* Detail cards */
+.details{display:flex;flex-direction:column;gap:14px;margin-top:18px}
+.detail{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 22px;scroll-margin-top:14px;
+  transition:border-color .4s}
+.detail.hl{border-color:var(--accent);transition:none}
+.d-top{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.d-top h2{margin:0;font-size:17px;font-weight:650;letter-spacing:-.02em}
+.d-badge{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.d-badge.dated{font-size:22px;color:var(--accent)}
+.d-badge.warn{font-size:18px;color:var(--accent);opacity:.75}
+.d-badge.safe{font-size:14px;color:var(--ok);padding:3px 12px;border-radius:999px;background:rgb(29 122 62/.10)}
+.d-what{margin:2px 0 0;font-size:13px;color:var(--ink-dim)}
+.d-threat{margin:12px 0 0;font-size:15px;line-height:1.55}
+.d-threat strong{font-weight:700}
+.d-run{margin:2px 0 0;font-size:13px;color:var(--ink-dim)}
+.d-explain{margin:10px 0 0;font-size:14.5px;line-height:1.55;color:var(--ink)}
+.d-source{margin:14px 0 0;padding:14px 16px;background:var(--panel);border-radius:var(--radius-sm)}
+.d-source .d-kicker{margin:0 0 4px;font-size:12px;color:var(--ink-dim)}
+.d-source h3{margin:0 0 10px;font-size:14.5px;line-height:1.35;font-weight:650}
+.d-source blockquote{margin:0;padding:10px 12px;background:var(--surface);border-left:3px solid var(--accent);border-radius:0 var(--radius-sm) var(--radius-sm) 0;font-size:13px;line-height:1.55}
+.d-source .read{display:inline-block;margin-top:10px;font-size:13px;font-weight:600}
+.d-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 24px;margin-top:14px}
+.detail h4{margin:0 0 5px;font-size:12px;font-weight:650;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.04em}
+.d-grid ul{margin:0;padding-left:16px;font-size:13.5px;line-height:1.55}
+.d-grid li{margin:0 0 4px}
+.d-note{margin:10px 0 0;font-size:12px;color:var(--ink-dim)}
 
-.chartwrap{margin-top:12px;background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 10px 8px}
+/* Collapsed technical chart */
+.tech{margin-top:22px}
+.tech summary{cursor:pointer;font-size:13.5px;color:var(--ink-dim);font-weight:600;padding:6px 0}
+.chartwrap{margin-top:10px;background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 10px 8px}
 .tl-narrow{display:none}
 .tl{display:block;width:100%;height:auto;overflow:visible}
 .tl .grid{stroke:rgb(var(--ink-rgb)/.07);stroke-width:1}
@@ -81,26 +95,6 @@ body.lock{overflow:hidden}
 .legend .k.need{border-top:2px solid var(--ink)}
 .legend .k.ring{width:11px;height:11px;border:2px solid var(--accent);border-radius:50%}
 
-.proofs{margin-top:16px}
-.proof{display:none;background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px 22px;gap:28px;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr)}
-.proof.is-sel,.proof:target{display:grid}
-.proofs:has(.proof:target) .proof.is-sel:not(:target){display:none}
-.proof .what{margin:0 0 4px;font-size:12.5px;font-weight:600;color:var(--accent)}
-.proof .kicker{margin:0 0 6px;font-size:12.5px;color:var(--ink-dim)}
-.proof h3{margin:0 0 12px;font-size:16.5px;line-height:1.35;font-weight:650;letter-spacing:-.01em}
-.proof .fig{margin:0;font-size:14px}
-.proof .big{font-size:30px;font-weight:650;letter-spacing:-.03em;font-variant-numeric:tabular-nums;margin-right:2px}
-.proof .run{display:block;margin-top:2px;color:var(--ink-dim);font-size:13.5px}
-.proof .qlabel{margin:16px 0 6px;font-size:12.5px;font-weight:600;color:var(--ink-dim)}
-.proof blockquote{margin:0;padding:12px 14px;background:var(--panel);border-left:3px solid var(--accent);border-radius:0 var(--radius-sm) var(--radius-sm) 0;font-size:13.5px;line-height:1.55}
-.proof .read{display:inline-block;margin-top:14px;font-weight:600}
-.proof .ps{border-left:1px solid var(--rule);padding-left:28px;font-size:13.5px}
-.proof .ps h4{margin:14px 0 6px;font-size:12.5px;font-weight:650;color:var(--ink-dim)}
-.proof .ps h4:first-child{margin-top:0}
-.proof .ps ul{margin:0;padding-left:18px}
-.proof .ps li{margin:0 0 5px;color:var(--ink)}
-.proof .ps .when-line{margin:0 0 4px;font-size:14px}
-.proof .ps .when-line strong{color:var(--accent)}
 .radar{margin-top:26px}.radar summary{cursor:pointer;color:var(--ink-dim)}.radar ul{padding-left:18px}
 
 @media (max-width:900px){
@@ -108,7 +102,7 @@ body.lock{overflow:hidden}
   .cd .row{grid-template-columns:1fr;gap:0}.cd .row .who{padding-bottom:2px}.cd .track{border-left:0;height:48px}
   .cd .track .gl{display:none}
   .tl-wide{display:none}.tl-narrow{display:block}
-  .proof.is-sel,.proof:target{display:block}
-  .proof .ps{border-left:0;border-top:1px solid var(--rule);padding:14px 0 0;margin-top:16px}
+  .d-grid{grid-template-columns:1fr}
+  .d-grid>div+div{margin-top:10px}
 }
 @media (max-width:640px){.hero{padding:22px 0 10px}}

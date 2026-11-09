@@ -66,7 +66,7 @@ class Present(unittest.TestCase):
         self.assertEqual(present.duration(1.25), "1.25 hours")
 
     def test_strip_dashes(self):
-        em, en = "\u2014", "\u2013"
+        em, en = "—", "–"
         self.assertEqual(present.strip_dashes(f"fast {em} but costly"), "fast; but costly")
         self.assertEqual(present.strip_dashes(f"fast{em}but costly"), "fast; but costly")
         self.assertEqual(present.strip_dashes(f"fast {en} but costly"), "fast; but costly")
@@ -86,6 +86,12 @@ class Present(unittest.TestCase):
         self.assertNotIn("\n", present.clean("a\nb\x00c"))
         self.assertLessEqual(len(present.clean("x" * 400, 20)), 20)
 
+    def test_year_label(self):
+        self.assertEqual(present.year_label(2028), "2028")
+        self.assertEqual(present.year_label(2028, 3), "Mar 2028")
+        self.assertEqual(present.year_label(2028, None), "2028")
+        self.assertEqual(present.year_label(2028, 12), "Dec 2028")
+
 
 class Chart(unittest.TestCase):
     def lines(self, narrow=False):
@@ -99,41 +105,41 @@ class Chart(unittest.TestCase):
     def test_every_attack_is_one_labelled_line_on_one_chart(self):
         svg = self.svg()
         self.assertEqual(svg.count("<svg"), 1)
-        self.assertEqual(svg.count('class="atk"'), 3)  # 256-bit curves, RSA-2048, AES-128
+        self.assertEqual(svg.count('class="atk"'), 3)
         for name in ("RSA-2048", "256-bit curves", "AES-128"):
             self.assertIn(f">{name}<", svg)
         self.assertNotIn("nan", svg.lower())
 
     def test_each_line_is_read_against_its_own_kind_of_qubit(self):
         by = {ln["name"]: ln for ln in self.lines()}
-        self.assertEqual((by["RSA-2048"]["metric"], by["RSA-2048"]["year"]), ("physical_qubits", 2029))  # 20,000 is short of 45,000
+        self.assertEqual((by["RSA-2048"]["metric"], by["RSA-2048"]["year"]), ("physical_qubits", 2029))
         self.assertEqual(by["256-bit curves"]["year"], 2028)
         self.assertFalse(by["AES-128"]["practical"])
         self.assertEqual(by["AES-128"]["when"], "not practical")
 
     def test_rings_only_for_practical_breaks_and_dots_for_every_machine(self):
         svg = self.svg()
-        self.assertEqual(svg.count('class="cross"'), 2)  # one ring per practical break, each with a halo behind it  # not for AES, which is only weakened
-        self.assertEqual(svg.count('class="dot '), 8)  # 4 physical and 4 logical announcements
+        self.assertEqual(svg.count('class="cross"'), 2)
+        self.assertEqual(svg.count('class="dot '), 8)
 
     def test_labels_never_overlap(self):
         ys = chart.spread([100, 104, 108, 300, 301], 30, 10, 400)
         self.assertTrue(all(b - a >= 29.99 for a, b in zip(sorted(ys), sorted(ys)[1:])))
-        self.assertEqual(chart.spread([5], 30, 10, 400), [10])  # stays inside the plot
+        self.assertEqual(chart.spread([5], 30, 10, 400), [10])
         order = [ys.index(v) for v in sorted(ys)]
-        self.assertEqual(order, [0, 1, 2, 3, 4])  # order is kept
+        self.assertEqual(order, [0, 1, 2, 3, 4])
 
     def test_narrow_version_has_short_labels(self):
         svg = self.svg(narrow=True)
         self.assertIn(">2029<", svg)
         visible = re.findall(r'class="sb"[^>]*>(.*?)</text>', svg)
-        self.assertTrue(visible and all("physical" not in v and "logical" not in v for v in visible))  # just the year or the verdict
+        self.assertTrue(visible and all("physical" not in v and "logical" not in v for v in visible))
 
 
 class BreakDate(unittest.TestCase):
     def test_earliest_year_a_big_enough_machine_is_announced(self):
         p = breakdate.earliest_path(ROWS, HW, "ecdlp-256")
-        self.assertEqual(p["year"], 2028)  # 20,000 >= 19,397 physical and 1,600 >= 835 logical in the same year
+        self.assertEqual(p["year"], 2028)
         self.assertIsNone(breakdate.earliest_path(ROWS, [], "rsa-2048")["year"])
         self.assertEqual(breakdate.earliest_path(ROWS, [], "rsa-2048")["reason"], "no hardware announcements collected")
 
@@ -185,20 +191,56 @@ class Build(unittest.TestCase):
             os.chdir(cwd)
         return out
 
-    def test_one_chart_one_panel_and_nothing_else_stacked(self):
+    def countdown(self, html):
+        out = []
+        for block in re.findall(r'<a class="row[^"]*".*?</a>', html, re.S):
+            title = re.search(r"<strong>(.*?)</strong>", block).group(1)
+            year = re.search(r"<b>(.*?)</b>", block) or re.search(r'class="safe">(.*?)<', block)
+            out.append((title, year.group(1) if year else ""))
+        return out
+
+    def test_detail_cards_below_countdown(self):
         out = self.build(ROWS, STATUS, hw=HW)
         html = (out / "index.html").read_text()
-        self.assertEqual(html.count('class="tl ov"'), 2)  # one chart, in a wide and a narrow size
-        self.assertEqual(html.count('class="proof is-sel"'), 1)
-        self.assertEqual(html.count('class="atk"'), 6)
-        for gone in ("role=\"tab\"", "<nav", "<table", "Everything affected", "How to read this", "How the size needed fell"):
-            self.assertNotIn(gone, html)
-        self.assertIn("When could quantum computers break the encryption you use?", html)
+        self.assertIn('class="details"', html)
+        self.assertIn('class="detail"', html)
         self.assertIn("Where you meet it", html)
         self.assertIn("If it breaks", html)
-        self.assertNotIn("<style", html)
-        self.assertTrue((out / "assets" / "favicon.svg").exists())
-        self.assertFalse(list((out / "assets" / "fonts").glob("*.ttf")))
+        self.assertIn("The cheapest published attack needs", html)
+        self.assertIn("Read the paper", html)
+        self.assertNotIn('role="dialog"', html)
+        self.assertNotIn("data-open", html)
+        self.assertNotIn("data-close", html)
+
+    def test_front_page_answers_the_bitcoin_question_first(self):
+        proxy = row("2610.37839", "dlp-ff-512", "2026-10-27", physical_qubits=6656.0)
+        html = (self.build(ROWS + [proxy], STATUS, hw=HW) / "index.html").read_text()
+        rows = self.countdown(html)
+        self.assertEqual(rows[0], ("Bitcoin, Ethereum and crypto wallets", "2028"))
+        self.assertIn('class="row first"', html)
+        self.assertEqual(dict(rows)["Websites and software updates"], "2029")
+        self.assertEqual(dict(rows)["Older VPN and SSH setups"], "2027 or later")
+        self.assertEqual(dict(rows)["Disk encryption and passwords"], "Safe in practice")
+
+    def test_countdown_rows_link_to_detail_sections(self):
+        html = (self.build(ROWS, STATUS, hw=HW) / "index.html").read_text()
+        hrefs = re.findall(r'<a class="row[^"]*" href="(#[^"]+)"', html)
+        self.assertTrue(hrefs)
+        for href in hrefs:
+            self.assertTrue(href.startswith("#d-"))
+            self.assertIn(f'id="{href[1:]}"', html)
+
+    def test_tech_chart_collapsed_by_default(self):
+        html = (self.build(ROWS, STATUS, hw=HW) / "index.html").read_text()
+        self.assertIn('<details class="tech">', html)
+        self.assertIn("Technical overview", html)
+        self.assertEqual(html.count('class="tl ov"'), 2)
+
+    def test_page_is_short_by_construction(self):
+        html = (self.build(ROWS, STATUS, hw=HW) / "index.html").read_text()
+        self.assertLessEqual(len(self.countdown(html)), 6)
+        self.assertNotIn("<table", html)
+        self.assertEqual(html.count("<h1"), 1)
 
     def test_card_tags(self):
         out = self.build(ROWS, STATUS, hw=HW)
@@ -220,54 +262,17 @@ class Build(unittest.TestCase):
         self.assertEqual(t.meta["twitter:card"], "summary")
         self.assertNotIn("og:image", t.meta)
 
-    def countdown(self, html):
-        """(title, year text or verdict) for each countdown row, in page order."""
-        out = []
-        for block in re.findall(r'<button class="row[^"]*".*?</button>', html, re.S):
-            title = re.search(r"<strong>(.*?)</strong>", block).group(1)
-            year = re.search(r"<b>(.*?)</b>", block) or re.search(r'class="safe">(.*?)<', block)
-            out.append((title, year.group(1) if year else ""))
-        return out
-
-    def test_front_page_answers_the_bitcoin_question_first(self):
-        proxy = row("2610.37839", "dlp-ff-512", "2026-10-27", physical_qubits=6656.0)
-        html = (self.build(ROWS + [proxy], STATUS, hw=HW) / "index.html").read_text()
-        rows = self.countdown(html)
-        self.assertEqual(rows[0], ("Bitcoin, Ethereum and crypto wallets", "2028"))  # the thing a newcomer cares about, first
-        self.assertIn('class="row first"', html)
-        self.assertEqual(dict(rows)["Websites and software updates"], "2029")
-        self.assertEqual(dict(rows)["Older VPN and SSH setups"], "2027 or later")  # a smaller-size result can only be a lower bound
-        self.assertEqual(dict(rows)["Disk encryption and passwords"], "Safe in practice")
-        self.assertEqual(html.count('data-open="'), len(rows) + 1)  # every row, plus the evidence link, opens the evidence
-
-    def test_evidence_is_an_overlay_not_part_of_the_first_screen(self):
-        html = (self.build(ROWS, STATUS, hw=HW) / "index.html").read_text()
-        self.assertEqual(html.count('id="evidence"'), 1)
-        self.assertLess(html.index('class="cd"'), html.index('id="evidence"'))  # answer first, evidence after
-        self.assertIn("data-close", html)
-        self.assertIn('role="dialog"', html)
-        css = (ROOT / "web" / "css" / "pages" / "index.css").read_text()
-        self.assertIn(".js .evidence{display:none;position:fixed", css)  # hidden until opened when scripts run
-        self.assertIn(".evidence{margin-top", css)  # but plain and readable without them
-
-    def test_page_is_short_by_construction(self):
-        html = (self.build(ROWS, STATUS, hw=HW) / "index.html").read_text()
-        self.assertLessEqual(len(self.countdown(html)), 6)
-        self.assertNotIn("How to read this", html)
-        self.assertNotIn("<table", html)
-        self.assertEqual(html.count("<h1"), 1)
-
     def test_hostile_text_is_escaped_and_dashes_removed(self):
-        bad = dict(ROWS[2], title='<img src=x onerror=alert(1)> "t" \u2014 x', quote="<script>alert(1)</script> fast \u2014 but")
+        bad = dict(ROWS[2], title='<img src=x onerror=alert(1)> "t" — x', quote="<script>alert(1)</script> fast — but")
         out = self.build([bad] + ROWS[:2], STATUS, hw=HW)
         html = (out / "index.html").read_text()
         self.assertNotIn("<script>alert", html)
         self.assertNotIn("<img src=x", html)
-        self.assertNotIn("\u2014", html)
+        self.assertNotIn("—", html)
         self.assertIn("fast; but", html)
 
     def test_served_data_has_no_em_dash_but_input_is_untouched(self):
-        em = "\u2014"
+        em = "—"
         hw = [dict(HW[0], quote=f"We will deliver {em} by 2027")]
         out = self.build(ROWS, STATUS, hw=hw)
         served = (out / "data" / "hardware.json").read_text()
@@ -286,6 +291,23 @@ class Build(unittest.TestCase):
         bad = (self.build(ROWS, {**STATUS, "gate": {"ok": False}, "source_errors": {"arxiv": "zero items"}}, hw=HW) / "index.html").read_text()
         self.assertIn("The last update had a problem", bad)
         self.assertIn('role="alert"', bad)
+
+    def test_safe_detail_card_has_no_source(self):
+        crows = site.countdown_rows(site.chart_lines(ROWS, HW))
+        safe = [c for c in crows if c["safe"]]
+        self.assertTrue(safe)
+        card = site.detail_card(safe[0])
+        self.assertNotIn("Read the paper", card)
+        self.assertIn("Where you meet it", card)
+        self.assertIn("Safe in practice", card)
+
+    def test_month_precision_in_detail(self):
+        hw_month = [dict(HW[2], target_month=6)]
+        crows = site.countdown_rows(site.chart_lines(ROWS, hw_month))
+        for crow in crows:
+            card = site.detail_card(crow)
+            if crow["year"] == 2028:
+                self.assertIn("Jun 2028", card)
 
 
 if __name__ == "__main__":

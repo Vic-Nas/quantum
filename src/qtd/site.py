@@ -1,4 +1,4 @@
-"""Build the static site: one front page with a timeline per target, proof on click."""
+"""Build the static site: a countdown that answers 'when', with a detail card per threat below."""
 import hashlib
 import html
 import json
@@ -9,15 +9,14 @@ from pathlib import Path
 
 from . import cardimg, cards, chart
 from .breakdate import METRICS, earliest_path, requirement, supply_points
-from .present import (ALGORITHMS, CHART_GROUPS, CONSEQUENCE, COUNTDOWN, PROXY_TARGETS, SECURES, SECURES_NOTE, clean, count, date_label, dom_id, duration,
-                      paper_id, plain_reason, short_count, strip_dashes, year_frac)
+from .present import (ALGORITHMS, ALGORITHMS_NOTE, CHART_GROUPS, CONSEQUENCE, COUNTDOWN, PROXY_TARGETS, SECURES, SECURES_NOTE, clean, count, date_label,
+                      dom_id, duration, paper_id, plain_reason, short_count, strip_dashes, year_frac, year_label)
 
 WEB = Path("web")
 DEFAULT_URL = "https://vic-nas.github.io/quantum/"
 
 
 def base_url() -> str:
-    """Public address from QTD_SITE_URL (a repo variable). Empty or unset falls back to the default."""
     url = (os.environ.get("QTD_SITE_URL") or "").strip() or DEFAULT_URL
     return url if url.endswith("/") else url + "/"
 
@@ -71,56 +70,12 @@ def chart_lines(rows, hw_rows, narrow=False):
         size = short_count(need_row[metric])
         out.append({"id": dom_id(need_row["id"]), "name": name, "need": need_row[metric], "metric": metric, "year": year,
                     "practical": practical, "when": when, "who": who, "target": target, "row": need_row, "path": path,
-                    "sub": when if narrow else f"{size} {_words(metric)} \u00b7 {when}"})
+                    "sub": when if narrow else f"{size} {_words(metric)} · {when}"})
     return out
 
 
-def info_block(line):
-    """Who uses it and what a break means, for the detail panel (hand-written text)."""
-    used = "".join(f"<li><strong>{e(a[0])}</strong> {e(a[1])}</li>" for a in ALGORITHMS if a[3] == line["target"])
-    effects = SECURES.get(line["target"]) or [("", CONSEQUENCE.get(line["target"], ""))]
-    eff = "".join(f"<li>{f'<strong>{e(t)}</strong> ' if t else ''}{e(x)}</li>" for t, x in effects if x)
-    p = line["path"]
-    when = ""
-    if line["practical"] and p.get("year"):
-        when = (f'<p class="when-line">Earliest announced path: <strong>{p["year"]}</strong>'
-                f'{" or later" if line["target"] in PROXY_TARGETS else ""}. {e(p["supply"]["actor"])} announced '
-                f'{e(short_count(p["supply"][p["metric"]]))} {_words(p["metric"])} qubits by {p["year"]}.</p>')
-    elif line["practical"]:
-        when = f'<p class="when-line">No announced machine is big enough yet.</p>'
-    return (f'{when}<h4>Where you meet it</h4><ul>{used}</ul>' + (f'<h4>If it breaks</h4><ul>{eff}</ul>' if eff else "")
-            + f'<p class="dim">{e(SECURES_NOTE)}</p>' if line["practical"] else
-            f'{when}<h4>Where you meet it</h4><ul>{used}</ul><h4>What it means</h4><ul>{eff}</ul>')
-
-
-def proof(r, selected, line=None):
-    """The detail panel for one source: its own words, plus (for an attack) who uses it and what a break means."""
-    hw = r.get("kind") == "hardware"
-    bits = []
-    if r.get("physical_qubits") is not None:
-        bits.append(f'<span class="big">{e(short_count(r["physical_qubits"]))}</span> physical qubits')
-    if r.get("logical_qubits") is not None:
-        bits.append(f'<span class="big">{e(count(r["logical_qubits"]))}</span> error-corrected (logical) qubits')
-    if hw:
-        kicker = f'{e(r.get("actor"))} roadmap &middot; target year {e(int(r["target_year"]))}'
-        label_, read = "What the vendor's page says", "Read the vendor's page"
-        head_ = f'{e(r.get("actor"))} plans this machine'
-        run = '<span class="run">A plan or target, not a delivered machine.</span>'
-    else:
-        kicker = f'{e(date_label(r.get("published", "")) or "date unknown")} &middot; {e(paper_id(r["id"]))}'
-        label_, read = "What the paper says", "Read the paper"
-        head_ = clean(r["title"], 160)
-        run = f'<span class="run">Runs in about {e(duration(r["runtime"]))}.</span>' if r.get("runtime") is not None else ""
-    side = f'<div class="ps">{info_block(line)}</div>' if line else ""
-    lead = f'<p class="what">{e(line["name"])}: {e(line["who"])}</p>' if line else ""
-    return (f'<article class="proof{" is-sel" if selected else ""}" id="{dom_id(r["id"])}"><div class="pm">{lead}'
-            f'<p class="kicker">{kicker}</p><h3>{e(head_)}</h3><p class="fig">{" and ".join(bits)}</p>{run}'
-            f'<p class="qlabel">{label_}</p><blockquote>{e(clean(r["quote"], 700))}</blockquote>'
-            f'<a class="read" href="{e(r["url"])}">{read}</a></div>{side}</article>')
-
-
 def countdown_rows(lines):
-    """Plain-language rows for the front page, from the chart lines: earliest announced year per thing people care about."""
+    """Plain-language rows for the front page: earliest announced year per thing people care about."""
     by = {ln["target"]: ln for ln in lines}
     out = []
     for title, what, targets in COUNTDOWN:
@@ -131,39 +86,121 @@ def countdown_rows(lines):
         proxy = any(ln["target"] in PROXY_TARGETS for ln in dated)
         out.append({"title": title, "what": what, "id": mine[0]["id"], "year": min((ln["year"] for ln in dated), default=None),
                     "safe": not any(ln["practical"] for ln in mine), "proxy": proxy,
-                    "waiting": any(ln["practical"] for ln in mine) and not dated})
+                    "waiting": any(ln["practical"] for ln in mine) and not dated,
+                    "lines": mine})
     return out
 
 
 def countdown_html(crows, today):
-    """The front-page chart: one bar per row from today to the earliest announced year, on a shared year axis."""
+    """The front-page countdown: one bar per row from today to the earliest announced year."""
     years = [r["year"] for r in crows if r["year"]]
     if not years:
         return ""
-    x0, x1 = today, max(years) + 1.0  # a bar ends at the END of its year: announced 'by 2028' is never earlier than that
+    x0, x1 = today, max(years) + 1.0
     pct = lambda x: 100 * (x - x0) / (x1 - x0)
     ticks = "".join(f'<span class="yr" style="left:{pct(y + 0.5):.2f}%">{y}</span>' for y in range(int(x0), int(x1)) if y + 0.5 > x0)
     grid = "".join(f'<i class="gl" style="left:{pct(y):.2f}%"></i>' for y in range(int(x0) + 1, int(x1) + 1) if x0 < y < x1)
     rows = []
     for n, r in enumerate(crows):
+        cid = f"d-{dom_id(r['id'])}"
         if r["safe"]:
             track = '<span class="safe">Safe in practice</span>'
         elif r["year"]:
             end = pct(r["year"] + 1.0)
-            track = (f'<span class="bar" style="width:{end:.2f}%"><b>{r["year"]}{" or later" if r["proxy"] else ""}</b></span>')
+            track = f'<span class="bar" style="width:{end:.2f}%"><b>{r["year"]}{" or later" if r["proxy"] else ""}</b></span>'
         else:
             track = '<span class="safe">No announced machine is big enough yet</span>'
-        rows.append(f'<button class="row{" first" if n == 0 else ""}" data-open="{e(r["id"])}" type="button">'
+        rows.append(f'<a class="row{" first" if n == 0 else ""}" href="#{cid}">'
                     f'<span class="who"><strong>{e(r["title"])}</strong><small>{e(r["what"])}</small></span>'
-                    f'<span class="track">{grid}{track}</span></button>')
+                    f'<span class="track">{grid}{track}</span></a>')
     return (f'<section class="cd" aria-label="When it could break"><div class="axis"><span class="who"></span>'
             f'<span class="track">{ticks}</span></div>{"".join(rows)}'
             '<p class="foot">Each bar runs from today to the earliest year a vendor has announced a machine big enough. '
-            'Plans, not delivered machines. <button class="more" type="button" data-open="">See the evidence</button></p></section>')
+            'Plans, not delivered machines.</p></section>')
+
+
+def detail_card(crow):
+    """One detail section for a countdown row: threat, source paper, and impact."""
+    cid = f"d-{dom_id(crow['id'])}"
+
+    if crow["safe"]:
+        badge_text = "Safe in practice"
+        badge_cls = "safe"
+    elif crow["year"]:
+        badge_text = f'{crow["year"]}{" or later" if crow.get("proxy") else ""}'
+        badge_cls = "warn" if crow.get("proxy") else "dated"
+    elif crow.get("waiting"):
+        badge_text = "No machine is big enough yet"
+        badge_cls = "warn"
+    else:
+        badge_text = ""
+        badge_cls = "warn"
+
+    top = (f'<section class="detail" id="{cid}">'
+           f'<div class="d-top"><h2>{e(crow["title"])}</h2>'
+           f'<span class="d-badge {badge_cls}">{e(badge_text)}</span></div>'
+           f'<p class="d-what">{e(crow["what"])}</p>')
+
+    algos = "".join(f'<li><strong>{e(a[0])}</strong> {e(a[1])}</li>'
+                    for ln in crow["lines"] for a in ALGORITHMS if a[3] == ln["target"])
+
+    if crow["safe"]:
+        parts = [CONSEQUENCE.get(ln["target"], "") for ln in crow["lines"]]
+        explain = "</p><p class=\"d-explain\">".join(x for x in parts if x)
+        return (f'{top}<p class="d-explain">{e(explain)}</p>'
+                f'<h4>Where you meet it</h4><ul>{algos}</ul></section>')
+
+    dated = [ln for ln in crow["lines"] if ln.get("year")]
+    primary = min(dated, key=lambda l: l["year"]) if dated else crow["lines"][0]
+    r = primary["row"]
+    p = primary["path"]
+
+    size = short_count(r[primary["metric"]])
+    mw = _words(primary["metric"])
+    threat = f'The cheapest published attack needs <strong>{e(size)} {mw} qubits</strong>.'
+    if p.get("supply"):
+        s = p["supply"]
+        ms = short_count(s[primary["metric"]])
+        yl = year_label(int(p["year"]), s.get("target_month"))
+        threat += f' {e(s["actor"])} plans {e(ms)} by {e(yl)}.'
+
+    runtime = ""
+    if r.get("runtime") is not None:
+        runtime = f'<p class="d-run">Runs in about {e(duration(r["runtime"]))}.</p>'
+
+    kicker = f'{e(date_label(r.get("published", "")) or "date unknown")} &middot; {e(paper_id(r["id"]))}'
+    source = (f'<div class="d-source"><p class="d-kicker">{kicker}</p>'
+              f'<h3>{e(clean(r["title"], 160))}</h3>'
+              f'<blockquote>{e(clean(r["quote"], 700))}</blockquote>'
+              f'<a class="read" href="{e(r["url"])}">Read the paper</a></div>')
+
+    effects = SECURES.get(primary["target"]) or [("", CONSEQUENCE.get(primary["target"], ""))]
+    eff = "".join(f'<li>{f"<strong>{e(t)}</strong> " if t else ""}{e(x)}</li>' for t, x in effects if x)
+
+    impact = (f'<div class="d-grid"><div><h4>Where you meet it</h4><ul>{algos}</ul></div>'
+              f'<div><h4>If it breaks</h4><ul>{eff}</ul></div></div>')
+    note = f'<p class="d-note">{e(SECURES_NOTE)}</p>'
+
+    return f'{top}<p class="d-threat">{threat}</p>{runtime}{source}{impact}{note}</section>'
+
+
+def tech_chart_html(lines, narrow_lines, phys, logi, today, alt):
+    """Collapsed technical overview: the full chart with all attacks and announced machines."""
+    if not lines:
+        return ""
+    return ('<details class="tech"><summary>Technical overview: all attacks and announced machines</summary>'
+            '<div class="chartwrap">'
+            f'<div class="tl-wide">{chart.overview_svg(lines, phys, logi, 1060, 440, alt, today)}</div>'
+            f'<div class="tl-narrow">{chart.overview_svg(narrow_lines, phys, logi, 380, 440, alt, today, narrow=True)}</div>'
+            '<p class="legend"><span class="li"><span class="k line"></span>Machines vendors announced: physical qubits</span>'
+            '<span class="li"><span class="k line dashed"></span>logical qubits</span>'
+            '<span class="li"><span class="k need"></span>Size an attack needs (solid: physical, dashed: logical)</span>'
+            '<span class="li"><span class="k ring"></span>Where a machine passes it</span></p>'
+            '</div></details>')
 
 
 def radar_rows(path):
-    """Papers whose latest outcome is Tier B (found, not confirmed). One line per paper; never affects the charts."""
+    """Papers whose latest outcome is Tier B (found, not confirmed)."""
     latest = {}
     if not path.exists():
         return []
@@ -173,7 +210,7 @@ def radar_rows(path):
             latest[r.get("id") or r.get("url", "")] = r
     def chartable(r):
         ests = r.get("estimates") or []
-        return not ests or any(e["values"].get("physical_qubits") is not None or e["values"].get("logical_qubits") is not None for e in ests)
+        return not ests or any(e_["values"].get("physical_qubits") is not None or e_["values"].get("logical_qubits") is not None for e_ in ests)
     return [r for r in latest.values() if r.get("tier") == "B" and chartable(r)][:25]
 
 
@@ -193,7 +230,7 @@ def build(out="site", data="data"):
     for f in ("attacks.json", "hardware.json", "status.json", "queue.json"):
         src = data / f
         raw = json.loads(src.read_text()) if src.exists() else []
-        if isinstance(raw, list):  # the served copy has dashes removed from quoted text; the stored data stays verbatim
+        if isinstance(raw, list):
             raw = [{k: (strip_dashes(v) if k in ("quote", "title") else v) for k, v in r.items()} if isinstance(r, dict) else r for r in raw]
         (out / "data" / f).write_text(json.dumps(raw, indent=1))
     (out / ".nojekyll").write_text("")
@@ -214,25 +251,14 @@ def build(out="site", data="data"):
     phys, logi = supply_points(hw_rows, "physical_qubits"), supply_points(hw_rows, "logical_qubits")
     today = year_frac(as_of) or 2026.9
     alt = "Quantum computer size each attack needs, against the machines vendors announced, by year."
-    first = lines[0]["id"] if lines else None
-    proofs = "".join(proof(ln["row"], ln["id"] == first, ln) for ln in lines)
-    proofs += "".join(proof(p["row"], False) for p in phys + logi)
-    cd = countdown_html(countdown_rows(lines), today)
-    evidence = ""
-    if lines:
-        evidence = ('<div class="evidence" id="evidence" role="dialog" aria-modal="true" aria-label="The evidence"><div class="sheet">'
-                    '<div class="sheethead"><h2>The evidence</h2><button class="x" type="button" data-close aria-label="Close">&times;</button></div>'
-                    '<p class="dim sub">Each dark line is the machine size an attack needs. The orange staircase is what vendors say they will build. '
-                    'Where it passes a line is the earliest announced path. Click any line or dot.</p>'
-                    f'<section class="chartwrap" aria-label="Chart"><div class="tl-wide">{chart.overview_svg(lines, phys, logi, 1060, 440, alt, today)}</div>'
-                    f'<div class="tl-narrow">{chart.overview_svg(narrow_lines, phys, logi, 380, 440, alt, today, narrow=True)}</div>'
-                    '<p class="legend"><span class="li"><span class="k line"></span>Machines vendors announced: physical qubits</span>'
-                    '<span class="li"><span class="k line dashed"></span>logical qubits</span>'
-                    '<span class="li"><span class="k need"></span>Size an attack needs (solid: physical, dashed: logical)</span>'
-                    '<span class="li"><span class="k ring"></span>Where a machine passes it</span></p></section>'
-                    f'<section class="proofs" aria-live="polite">{proofs}</section></div></div>')
-    body = (cd + evidence) if lines else '<p class="empty">No verified estimates yet. The first update has not stored any.</p>'
-    answer = ""
+
+    crows = countdown_rows(lines)
+    cd = countdown_html(crows, today)
+    details = "".join(detail_card(crow) for crow in crows)
+    tech = tech_chart_html(lines, narrow_lines, phys, logi, today, alt)
+
+    body = (cd + f'<div class="details">{details}</div>' + tech) if lines else '<p class="empty">No verified estimates yet. The first update has not stored any.</p>'
+
     queued = json.loads((data / "queue.json").read_text()) if (data / "queue.json").exists() else {}
     queued_ids = {k.rsplit("@", 1)[0] for k in queued}
     radar = [r for r in radar_rows(data / "candidates") if r.get("id") not in queued_ids]
@@ -248,7 +274,6 @@ def build(out="site", data="data"):
     updated = date_label(as_of) or "not yet"
     page = f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<script>document.documentElement.className+=" js"</script>
 {head(card, hrefs)}
 </head><body>
 <header class="bar"><span class="brand"><img src="assets/favicon.svg" alt="" width="22" height="22">Quantum threat tracker</span><span class="upd">Updated {e(updated)}</span></header>
