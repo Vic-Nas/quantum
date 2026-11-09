@@ -1,10 +1,10 @@
 {
- "fetched": 5,
- "processed": 5,
+ "fetched": 9,
+ "processed": 9,
  "counts": {
   "A": 5,
-  "B": 0,
-  "drop": 0,
+  "B": 1,
+  "drop": 3,
   "retry": 0,
   "gave_up": 0
  },
@@ -16,5 +16,5 @@
  },
  "queue_size": 0,
  "dry": false,
- "run_at": "2026-11-09T00:20:03+00:00"
+ "run_at": "2026-11-09T01:08:48+00:00"
 }

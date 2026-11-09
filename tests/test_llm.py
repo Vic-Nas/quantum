@@ -17,6 +17,19 @@ class ParseJson(unittest.TestCase):
             llm.parse_json("no json here")
 
 
+class Timeouts(unittest.TestCase):
+    def test_read_timeout_is_a_model_failure_not_a_crash(self):
+        import os
+        import tempfile
+        from unittest import mock
+        llm.CACHE = Path(tempfile.mkdtemp())
+        with mock.patch.dict(os.environ, {"GEMINI_API_KEY": "x"}), \
+                mock.patch.object(llm.urllib.request, "urlopen", side_effect=TimeoutError("read timed out")), \
+                mock.patch.object(llm.time, "sleep", lambda s: None):
+            with self.assertRaises(llm.LLMError):
+                llm.generate("gemini-3.5-flash-lite", "p", {"type": "OBJECT"})
+
+
 class Budget(unittest.TestCase):
     def test_cap(self):
         import tempfile

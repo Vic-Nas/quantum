@@ -172,10 +172,18 @@ def run(use_llm: bool = True, limit: int | None = None, items: list | None = Non
 
 
 def seed():
-    """One-time bootstrap: run the hand-picked gold papers through the normal path and apply all
-    Tier A rows, so later runs compare against a real baseline instead of an empty table."""
-    gold = [json.loads(l) for l in (DATA / "gold" / "gold.jsonl").read_text().splitlines() if l.strip()]
-    items = [{"id": g["id"], "version": "seed", "source": "arxiv", "title": g["title"], "text": g["text"],
-              "url": "https://arxiv.org/abs/" + g["id"].split(":", 1)[1], "published": "", "updated": ""}
-             for g in gold if g["relevant"]]
+    """Rebuild the baseline from data/seed_papers.json through the normal verified path.
+
+    Fetches each paper from arXiv (so dates are real), clears the old seed rows and applies every
+    Tier A row. Later daily runs then compare against this baseline instead of an empty table.
+    """
+    ids = _load(DATA / "seed_papers.json", {}).get("ids", [])
+    items = sources.fetch_arxiv_ids(ids)
+    for it in items:
+        it["version"] = "seed"
+    keys = {f"{i['id']}@seed" for i in items}
+    seen = set(_load(DATA / "seen.json", [])) - keys
+    (DATA / "seen.json").write_text(json.dumps(sorted(seen)))
+    for f in ROWS.values():
+        (DATA / f).write_text("[]")
     return run(items=items, max_auto=10**6, check_canary=False)

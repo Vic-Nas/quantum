@@ -24,6 +24,11 @@ class TextUtil(unittest.TestCase):
     def test_hours(self):
         self.assertEqual(parse_hours("in less than a week"), 168)
         self.assertEqual(parse_hours("about 8 days"), 192)
+        self.assertEqual(parse_hours("in 9 h with 126133 cat qubits"), 9)
+        self.assertEqual(parse_hours("takes 30 min"), 0.5)
+        self.assertEqual(parse_hours("26 d"), 624)
+        self.assertEqual(parse_hours("2 months"), 1460)
+        self.assertIsNone(parse_hours("with 5 hardware qubits and 2 dozen"))
 
     def test_targets(self):
         self.assertEqual(canonical_target("factor 2048-bit RSA integers"), "rsa-2048")

@@ -10,12 +10,16 @@ sys.path.insert(0, str(ROOT / "src"))
 from qtd import cards, present, site  # noqa: E402
 
 ROWS = [
-    {"id": "arxiv:2609.05625#4", "kind": "attack", "target": "ecdlp-256", "physical_qubits": 19397.0, "runtime": 616.8,
-     "quote": "q1", "url": "https://arxiv.org/abs/2609.05625", "title": "ECDLP paper", "added": "2026-11-09"},
+    {"id": "arxiv:1905.09749#0", "kind": "attack", "target": "rsa-2048", "physical_qubits": 20000000.0, "runtime": 8.0,
+     "quote": "q0", "url": "https://arxiv.org/abs/1905.09749", "title": "RSA 2019", "published": "2019-05-23"},
+    {"id": "arxiv:2505.15917#0", "kind": "attack", "target": "rsa-2048", "physical_qubits": 1000000.0, "runtime": 168,
+     "quote": "q1", "url": "https://arxiv.org/abs/2505.15917", "title": "RSA 2025", "published": "2025-05-21"},
     {"id": "arxiv:2610.37839#3", "kind": "attack", "target": "rsa-2048", "physical_qubits": 45000.0,
-     "quote": "q2", "url": "https://arxiv.org/abs/2610.37839", "title": "RSA paper", "added": "2026-11-09"},
+     "quote": "q2", "url": "https://arxiv.org/abs/2610.37839", "title": "RSA 2026", "published": "2026-10-27"},
+    {"id": "arxiv:2609.05625#4", "kind": "attack", "target": "ecdlp-256", "physical_qubits": 19397.0, "runtime": 616.8,
+     "quote": "q3", "url": "https://arxiv.org/abs/2609.05625", "title": "ECDLP paper", "published": "2026-09-08"},
     {"id": "arxiv:2607.13816#7", "kind": "attack", "target": "ecdlp-256", "logical_qubits": 835.0,
-     "quote": "q3", "url": "https://arxiv.org/abs/2607.13816", "title": "Logical paper", "added": "2026-11-09"},
+     "quote": "q4", "url": "https://arxiv.org/abs/2607.13816", "title": "Logical paper", "published": "2026-07-15"},
 ]
 
 
@@ -39,34 +43,60 @@ class Tags(HTMLParser):
 
 
 class Present(unittest.TestCase):
-    def test_duration(self):
+    def test_numbers_and_dates(self):
+        self.assertEqual(present.short_count(20000000), "20 million")
+        self.assertEqual(present.short_count(1500000), "1.5 million")
+        self.assertEqual(present.short_count(45000), "45,000")
+        self.assertEqual(present.date_label("2026-10-27"), "27 Oct 2026")
+        self.assertEqual(present.date_label("2026-10-27", True), "Oct 2026")
+        self.assertEqual(present.date_label(""), "")
         self.assertEqual(present.duration(168), "7 days")
-        self.assertEqual(present.duration(616.8), "25.7 days")
         self.assertEqual(present.duration(1.25), "1.25 hours")
-        self.assertEqual(present.duration(1), "1 hour")
-        self.assertEqual(present.duration(0.35), "21 minutes")
-        self.assertEqual(present.duration(None), "")
 
-    def test_best_by_target(self):
-        b = present.best_by_target(ROWS)
-        self.assertEqual(b["ecdlp-256"]["physical"]["physical_qubits"], 19397.0)
-        self.assertEqual(b["ecdlp-256"]["logical"]["logical_qubits"], 835.0)
-        self.assertIsNone(b["rsa-2048"]["logical"])
+    def test_series_marks_records_and_skips_logical_only(self):
+        pts = present.series(ROWS, "rsa-2048")
+        self.assertEqual([p["y"] for p in pts], [20000000.0, 1000000.0, 45000.0])
+        self.assertTrue(all(p["record"] for p in pts))
+        self.assertEqual(len(present.series(ROWS, "ecdlp-256")), 1)  # logical-only row is not plotted
+        worse = ROWS + [dict(ROWS[0], id="x#1", physical_qubits=5e6, published="2026-01-01")]
+        flags = {p["row"]["id"]: p["record"] for p in present.series(worse, "rsa-2048")}
+        self.assertFalse(flags["x#1"])
 
-    def test_paper_id_and_clean(self):
+    def test_headline(self):
+        h = present.headline(ROWS, "rsa-2048")
+        self.assertEqual((h["first"]["y"], h["best"]["y"]), (20000000.0, 45000.0))
+        self.assertAlmostEqual(h["drop_pct"], 99.8, places=1)
+        self.assertIsNone(present.headline(ROWS, "rsa-4096"))
+
+    def test_clean_and_ids(self):
         self.assertEqual(present.paper_id("arxiv:2609.05625#4"), "arXiv 2609.05625")
-        self.assertEqual(present.clean("a\nb\x00c\x07" + "x" * 400, 20).count("\n"), 0)
+        self.assertEqual(present.dom_id("arxiv:2609.05625#4"), "p-arxiv-2609-05625-4")
+        self.assertNotIn("\n", present.clean("a\nb\x00c"))
         self.assertLessEqual(len(present.clean("x" * 400, 20)), 20)
+
+
+class Chart(unittest.TestCase):
+    def test_svg_has_a_link_per_dot_and_valid_numbers(self):
+        from qtd import chart
+        pts = present.series(ROWS, "rsa-2048")
+        svg = chart.timeline_svg(pts, 640, 330, "label")
+        self.assertEqual(svg.count('class="dot'), 3)
+        self.assertIn('href="#p-arxiv-2505-15917-0"', svg)
+        self.assertNotIn("nan", svg.lower())
+        self.assertEqual(chart.timeline_svg([], 640, 330, "x"), "")
+        one = chart.timeline_svg(present.series(ROWS, "ecdlp-256"), 340, 300, "x")  # single point must not crash
+        self.assertIn("<svg", one)
 
 
 class Cards(unittest.TestCase):
     def test_home_card(self):
         c = cards.home_card(ROWS, "2026-11-09", "https://example.com/q/")
-        self.assertIn("As of 2026-11-09", c["description"])
-        self.assertIn("RSA-2048 45,000", c["description"])
+        self.assertIn("RSA-2048 needed 20 million qubits in 2019 and now 45,000", c["description"])
+        self.assertIn("as of 2026-11-09", c["description"])
         self.assertTrue(c["url"].startswith("https://"))
         self.assertLessEqual(len(c["description"]), 250)
-        self.assertNotRegex(c["description"].lower(), r"\bago\b|\bminutes? ago|just now")
+        self.assertLessEqual(len(c["title"]), 60)
+        self.assertNotRegex(c["description"].lower(), r"\bago\b|just now")
 
     def test_empty_and_hostile(self):
         self.assertIn("No estimates", cards.home_card([], "", "https://e.com/")["description"])
@@ -107,12 +137,16 @@ class Build(unittest.TestCase):
         html = (out / "index.html").read_text()
         t = Tags()
         t.feed(html)
-        self.assertEqual(t.meta["og:title"], "Cheapest known quantum attacks")
-        self.assertIn("RSA-2048 45,000", t.meta["og:description"])
+        self.assertEqual(t.meta["og:title"], cards.TITLE)
+        self.assertIn("20 million qubits in 2019", t.meta["og:description"])
         self.assertTrue(t.meta["og:url"].startswith("https://"))
         self.assertEqual(t.meta["twitter:card"], "summary")
         self.assertNotIn("og:image", t.meta)  # image choice is the owner's decision
         self.assertRegex(html, r"assets/css/base\.css\?v=[0-9a-f]{10}")
+        self.assertEqual(html.count('class="dot'), 8)  # 3 + 3 (wide and narrow) + 1 + 1
+        self.assertIn('class="proof is-sel"', html)
+        self.assertNotIn("<nav", html)  # no navigation bar
+        self.assertNotIn("github.com", html)
         self.assertTrue((out / "assets" / "fonts" / "Geist-Variable.woff2").exists())
         self.assertTrue((out / ".nojekyll").exists())
         self.assertNotIn("<style", html)
@@ -128,11 +162,10 @@ class Build(unittest.TestCase):
 
     def test_states(self):
         empty = (self.build([], None) / "index.html").read_text()
-        self.assertIn("No estimates yet", empty)
-        self.assertIn("No run yet", empty)
+        self.assertIn("No verified estimates yet", empty)
         bad = (self.build(ROWS, {"run_at": "2026-11-09T00:00:00+00:00", "gate": {"ok": False},
                                  "source_errors": {"arxiv": "zero items"}}) / "index.html").read_text()
-        self.assertIn("Needs attention", bad)
+        self.assertIn("The last update had a problem", bad)
         self.assertIn('role="alert"', bad)
 
 

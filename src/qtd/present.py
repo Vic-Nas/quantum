@@ -62,3 +62,74 @@ def paper_id(row_id: str) -> str:
     base = str(row_id).split("#")[0]
     kind, _, rest = base.partition(":")
     return f"{ {'arxiv': 'arXiv', 'eprint': 'ePrint'}.get(kind, clean(kind)) } {clean(rest)}".strip()
+
+
+_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+
+def short_count(n) -> str:
+    """Plain-language count: 20000000 -> '20 million', 45000 -> '45,000'."""
+    if n is None:
+        return ""
+    if n >= 1e6:
+        return f"{n / 1e6:.1f}".rstrip("0").rstrip(".") + " million"
+    return f"{n:,.0f}"
+
+
+def date_label(iso: str, short: bool = False) -> str:
+    """'2026-10-27' -> '27 Oct 2026' (or 'Oct 2026' when short)."""
+    try:
+        y, m, d = (int(x) for x in str(iso)[:10].split("-"))
+        return f"{_MONTHS[m - 1]} {y}" if short else f"{d} {_MONTHS[m - 1]} {y}"
+    except (ValueError, IndexError):
+        return ""
+
+
+def year_frac(iso: str):
+    try:
+        y, m, d = (int(x) for x in str(iso)[:10].split("-"))
+        return y + (m - 1) / 12 + (d - 1) / 365
+    except ValueError:
+        return None
+
+
+def dom_id(row_id: str) -> str:
+    return "p-" + re.sub(r"[^a-z0-9]+", "-", str(row_id).lower()).strip("-")
+
+
+def series(rows, target):
+    """Plottable points for a target: physical-qubit estimates with a paper date, oldest first.
+
+    Each point gets `record` True if it set a new lowest value so far (the 'best known' staircase).
+    """
+    pts = []
+    for r in rows:
+        if r.get("target") != target or r.get("physical_qubits") is None:
+            continue
+        x = year_frac(r.get("published", ""))
+        if x is not None:
+            pts.append({"row": r, "x": x, "y": r["physical_qubits"], "date": r["published"][:10]})
+    pts.sort(key=lambda p: (p["x"], -p["y"]))
+    best = None
+    for p in pts:
+        p["record"] = best is None or p["y"] < best
+        best = p["y"] if p["record"] else best
+    return pts
+
+
+def headline(rows, target):
+    """First and current-best published physical-qubit estimate for a target, or None."""
+    pts = series(rows, target)
+    if not pts:
+        return None
+    first = pts[0]
+    best = min(pts, key=lambda p: (p["y"], -p["x"]))
+    drop = 1 - best["y"] / first["y"] if first is not best and first["y"] else 0
+    return {"first": first, "best": best, "drop_pct": round(drop * 100, 1), "n": len(pts)}
+
+
+TARGET_PLAIN = {
+    "rsa-2048": "Protects secure websites, software updates and older encrypted email.",
+    "ecdlp-256": "Signs Bitcoin and Ethereum transactions. Also used by secure web connections, SSH, Signal and WireGuard.",
+}
+TARGET_ORDER = ["rsa-2048", "ecdlp-256"]

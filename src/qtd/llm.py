@@ -127,7 +127,7 @@ def generate(model: str, prompt: str, schema: dict, use_cache: bool = True) -> d
                 time.sleep(10 * (attempt + 1))
                 continue
             break
-        except (KeyError, IndexError, json.JSONDecodeError, urllib.error.URLError) as e:
+        except (KeyError, IndexError, json.JSONDecodeError, OSError) as e:  # OSError covers timeouts and URLError
             err = repr(e)
             time.sleep(3)
     raise LLMError(f"{model}: {err or 'unknown'}")

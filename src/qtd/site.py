@@ -1,4 +1,4 @@
-"""Build the static site: index.html, hashed CSS, self-hosted fonts and the raw JSON feed."""
+"""Build the static site: one front page with a timeline per target, proof on click."""
 import hashlib
 import html
 import json
@@ -7,8 +7,9 @@ import shutil
 import sys
 from pathlib import Path
 
-from . import cards
-from .present import best_by_target, clean, count, duration, label, paper_id
+from . import cards, chart
+from .present import (TARGET_ORDER, TARGET_PLAIN, clean, count, date_label, dom_id, duration, headline, label,
+                      paper_id, series, short_count)
 
 WEB = Path("web")
 DEFAULT_URL = "https://vic-nas.github.io/quantum/"
@@ -18,10 +19,6 @@ def base_url() -> str:
     """Public address from QTD_SITE_URL (a repo variable). Empty or unset falls back to the default."""
     url = (os.environ.get("QTD_SITE_URL") or "").strip() or DEFAULT_URL
     return url if url.endswith("/") else url + "/"
-EXT = '<svg class="ext" aria-hidden="true"><use href="#i-ext"/></svg>'
-SPRITE = ('<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="i-ext" viewBox="0 0 12 12">'
-          '<path d="M4 2h6v6M10 2 3 9" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>'
-          "</symbol></svg>")
 
 
 def e(x) -> str:
@@ -29,7 +26,7 @@ def e(x) -> str:
 
 
 def head(card, css_hrefs):
-    t = [f"<title>{e(card['title'])} | {e(card['site_name'])}</title>",
+    t = [f"<title>{e(card['title'])}</title>",
          f'<meta name="description" content="{e(card["description"])}">',
          f'<meta property="og:site_name" content="{e(card["site_name"])}">',
          f'<meta property="og:type" content="{e(card["type"])}">',
@@ -44,38 +41,69 @@ def head(card, css_hrefs):
     return "\n".join(t)
 
 
-def fmt_time(iso):
-    return iso.replace("T", " ")[:16] + " UTC" if iso else "never"
+def proof(r, selected):
+    """The evidence card for one paper: what it says, in its own words."""
+    bits = []
+    if r.get("physical_qubits") is not None:
+        bits.append(f'<span class="big">{e(short_count(r["physical_qubits"]))}</span> physical qubits')
+    if r.get("logical_qubits") is not None:
+        bits.append(f'<span class="big">{e(count(r["logical_qubits"]))}</span> error-corrected (logical) qubits')
+    run = f'<span class="run">Runs in about {e(duration(r["runtime"]))}.</span>' if r.get("runtime") is not None else ""
+    when = date_label(r.get("published", "")) or "date unknown"
+    return (f'<article class="proof{" is-sel" if selected else ""}" id="{dom_id(r["id"])}">'
+            f'<p class="kicker">{e(when)} &middot; {e(paper_id(r["id"]))}</p>'
+            f'<h3>{e(clean(r["title"], 160))}</h3>'
+            f'<p class="fig">{" and ".join(bits)}</p>{run}'
+            f'<p class="qlabel">What the paper says</p><blockquote>{e(clean(r["quote"], 700))}</blockquote>'
+            f'<a class="read" href="{e(r["url"])}">Read the paper</a></article>')
 
 
-def summary_rows(rows):
+def target_section(rows, target):
+    pts = series(rows, target)
+    name, _ = label(target)
+    mine = [r for r in rows if r.get("target") == target]
+    if not mine:
+        return ""
+    best = min(pts, key=lambda p: (p["y"], -p["x"]))["row"]["id"] if pts else mine[0]["id"]
+    ordered = sorted(mine, key=lambda r: r.get("published", ""), reverse=True)
+    proofs = "".join(proof(r, r["id"] == best) for r in ordered)
+    alt = f"Qubits needed to break {name}, by paper date. Lower is closer to breaking it."
+    charts = ""
+    if pts:
+        charts = (f'<div class="chart"><div class="tl-wide">{chart.timeline_svg(pts, 640, 330, alt)}</div>'
+                  f'<div class="tl-narrow">{chart.timeline_svg(pts, 340, 300, alt)}</div>'
+                  '<p class="legend"><span class="li"><span class="k rec"></span>Set a new record</span>'
+                  '<span class="li"><span class="k"></span>Other estimates</span>'
+                  '<span class="li"><span class="k line"></span>Best known so far</span></p></div>')
+    else:
+        charts = '<div class="chart"><p class="dim">No estimate here states physical qubits, so there is nothing to chart yet.</p></div>'
+    also = [r for r in ordered if r.get("physical_qubits") is None]
+    also_html = ""
+    if also:
+        also_html = ('<p class="also"><span>Also published, not on the chart (counts error-corrected qubits only):</span> ' + " ".join(
+            f'<a href="#{dom_id(r["id"])}" data-id="{dom_id(r["id"])}">{e(count(r["logical_qubits"]))} logical, {e(date_label(r.get("published", ""), True))}</a>'
+            for r in also if r.get("logical_qubits") is not None) + "</p>")
+    return (f'<section class="target" id="t-{e(target)}"><header><h2>{e(name)}</h2><p>{e(TARGET_PLAIN.get(target, ""))}</p></header>'
+            f'<div class="viz">{charts}<aside class="proofs" aria-live="polite">{proofs}</aside></div>{also_html}</section>')
+
+
+def tiles(rows, targets):
     out = []
-    for target, b in best_by_target(rows).items():
-        name, sub = label(target)
-        p, lq = b["physical"], b["logical"]
-        def src(r):
-            return f'<a class="mono" href="{e(r["url"])}" title="{e(clean(r["title"], 160))}">{e(paper_id(r["id"]))}{EXT}</a>' if r else ""
-        out.append(
-            f'<tr><td data-label="Target"><span class="tname">{e(name)}</span><span class="small">{e(sub)}</span></td>'
-            f'<td class="num" data-label="Fewest physical qubits">{f'<span class="big">{count(p["physical_qubits"])}</span>' if p else '<span class="big none">not published</span>'}'
-            f'<span class="small">{e(duration(p.get("runtime"))) if p and p.get("runtime") is not None else ""}</span></td>'
-            f'<td class="num" data-label="Fewest logical qubits">{f'<span class="big">{count(lq["logical_qubits"])}</span>' if lq else '<span class="big none">not published</span>'}</td>'
-            f'<td data-label="Source">{src(p or lq)}</td>'
-            f'<td class="num" data-label="Estimates">{b["n"]}</td></tr>')
-    return "".join(out)
-
-
-def detail_rows(rows):
-    key = lambda r: (str(r.get("target")), r.get("physical_qubits") if r.get("physical_qubits") is not None else 1e99)
-    out = []
-    for r in sorted(rows, key=key):
-        out.append(
-            f'<tr><td class="nowrap">{e(label(r.get("target"))[0])}</td>'
-            f'<td class="num">{count(r.get("physical_qubits"))}</td><td class="num">{count(r.get("logical_qubits"))}</td>'
-            f'<td class="num">{e(duration(r.get("runtime")))}</td><td class="num">{count(r.get("toffoli_or_t_count"))}</td>'
-            f'<td><a href="{e(r["url"])}">{e(clean(r["title"], 70))}{EXT}</a>'
-            f'<details><summary></summary><blockquote>{e(clean(r["quote"], 700))}</blockquote></details></td>'
-            f'<td class="num dim">{e(r.get("added", ""))}</td></tr>')
+    for t in targets:
+        h = headline(rows, t)
+        if not h:
+            continue
+        name, _ = label(t)
+        now = short_count(h["best"]["y"])
+        if h["first"] is not h["best"]:
+            nums = (f'<span class="was">{e(short_count(h["first"]["y"]))}</span><span class="arrow" aria-label="down to">&rarr;</span>'
+                    f'<span class="now">{e(now)}</span>')
+            cap = (f'qubits needed, {e(date_label(h["first"]["date"], True))} to {e(date_label(h["best"]["date"], True))}'
+                   f' ({h["drop_pct"]:g}% smaller)')
+        else:
+            nums, cap = f'<span class="now">{e(now)}</span>', f'qubits needed, {e(date_label(h["best"]["date"], True))}'
+        out.append(f'<a class="hl" href="#t-{e(t)}"><span class="what">{e(name)}</span><span class="nums">{nums}</span>'
+                   f'<span class="cap">{cap}</span></a>')
     return "".join(out)
 
 
@@ -97,84 +125,56 @@ def build(out="site", data="data"):
     shutil.rmtree(out, ignore_errors=True)
     (out / "data").mkdir(parents=True)
     shutil.copytree(WEB / "fonts", out / "assets" / "fonts")
-    (out / "assets" / "css" / "pages").mkdir(parents=True)
-    hrefs = []
-    for rel in ("css/base.css", "css/pages/index.css"):
+    for sub in ("css/pages", "js"):
+        (out / "assets" / sub).mkdir(parents=True)
+    hrefs, scripts = [], []
+    for rel in ("css/base.css", "css/pages/index.css", "js/index.js"):
         body = (WEB / rel).read_bytes()
         (out / "assets" / rel).write_bytes(body)
-        hrefs.append(f"assets/{rel}?v={hashlib.sha256(body).hexdigest()[:10]}")
+        (hrefs if rel.endswith(".css") else scripts).append(f"assets/{rel}?v={hashlib.sha256(body).hexdigest()[:10]}")
     for f in ("attacks.json", "hardware.json", "status.json", "queue.json"):
         src = data / f
         (out / "data" / f).write_text(src.read_text() if src.exists() else "[]")
     (out / ".nojekyll").write_text("")
     rows = json.loads((out / "data" / "attacks.json").read_text())
-    st_path = data / "status.json"
-    st = json.loads(st_path.read_text()) if st_path.exists() else {}
+    st = json.loads((data / "status.json").read_text()) if (data / "status.json").exists() else {}
     as_of = (st.get("run_at") or "")[:10]
     card = cards.home_card(rows, as_of, base_url())
     gate_ok = (st.get("gate") or {}).get("ok", True)
     problems = list((st.get("source_errors") or {}).items())
-    health = ("bad", "Needs attention") if (problems or not gate_ok) else (("ok", "Pipeline healthy") if st else ("warn", "No run yet"))
-    radar = radar_rows(data / "candidates")
     alert = ""
     if problems or not gate_ok:
-        why = "; ".join(f"{k}: {clean(v, 80)}" for k, v in problems) or "the canary check failed, so new rows are held"
-        alert = f'<p class="alert" role="alert"><strong>Last run needs attention.</strong> {e(why)}</p>'
-    table_summary = (f'<div class="scroll"><table class="summary"><thead><tr><th>Target</th>'
-                     f'<th class="num">Fewest physical qubits</th><th class="num">Fewest logical qubits</th><th>Source</th>'
-                     f'<th class="num">Estimates</th></tr></thead><tbody>{summary_rows(rows)}</tbody></table></div>'
-                     if rows else '<div class="empty"><strong>No estimates yet</strong><p>The first run has not stored any verified estimate.</p></div>')
-    table_all = (f'<div class="scroll"><table class="wide"><thead><tr><th>Target</th><th class="num">Physical qubits</th>'
-                 f'<th class="num">Logical qubits</th><th class="num">Runtime</th><th class="num">Toffoli gates</th>'
-                 f'<th>Paper and verbatim quote</th><th class="num">Added</th></tr></thead><tbody>{detail_rows(rows)}</tbody></table></div>'
-                 if rows else "")
-    radar_html = ("".join(
-        f'<tr><td><a href="{e(r["url"])}">{e(clean(r["title"], 90))}{EXT}</a></td><td class="dim">{e(clean(r.get("reason"), 120))}</td></tr>'
-        for r in radar))
-    radar_panel = (f'<div class="scroll"><table><thead><tr><th>Paper</th><th>Why it is not in the numbers</th></tr></thead>'
-                   f"<tbody>{radar_html}</tbody></table></div>" if radar else
-                   '<div class="empty"><strong>Nothing waiting</strong><p>Papers the pipeline found but could not confirm appear '
-                   "here. They never change the figures above.</p></div>")
-    c = st.get("counts") or {}
-    kv = [("Papers checked", st.get("processed", "")),
-          ("New rows applied", st.get("auto_applied", "")), ("Held for review", st.get("held", "")),
-          ("Waiting for models", st.get("queue_size", "")), ("Gave up after retries", c.get("gave_up", "")),
-          ("Canary check", "passed" if gate_ok else "failed")]
-    kv_html = "".join(f"<div><dt>{e(k)}</dt><dd>{e(v)}</dd></div>" for k, v in kv)
+        why = "; ".join(f"{k}: {clean(v, 80)}" for k, v in problems) or "the safety check failed, so new papers are held back"
+        alert = f'<p class="alert" role="alert"><strong>The last update had a problem.</strong> {e(why)}</p>'
+    present = sorted({r.get("target") for r in rows}, key=lambda t: (TARGET_ORDER.index(t) if t in TARGET_ORDER else 99, str(t)))
+    radar = radar_rows(data / "candidates")
+    radar_html = ""
+    if radar:
+        radar_html = (f'<details class="radar"><summary>Found but not confirmed ({len(radar)})</summary><p class="dim">These never '
+                      "change the charts. They are listed so nothing is hidden.</p><ul>" + "".join(
+                          f'<li><a href="{e(r["url"])}">{e(clean(r["title"], 100))}</a> <span class="dim">{e(clean(r.get("reason"), 120))}</span></li>'
+                          for r in radar) + "</ul></details>")
+    body = "".join(target_section(rows, t) for t in present) if rows else (
+        '<p class="empty">No verified estimates yet. The first update has not stored any.</p>')
+    updated = date_label(as_of) or "not yet"
     page = f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 {head(card, hrefs)}
-</head><body class="p-home">{SPRITE}
-<header class="bar"><a class="brand" href="./">Quantum threat tracker</a>
-<nav aria-label="Main"><a href="./" aria-current="page">Estimates</a><a href="data/attacks.json">Data</a>
-<a href="https://github.com/Vic-Nas/quantum">Source</a></nav><span class="spacer"></span>
-<span class="pill"><span class="dot {health[0]}"></span>{e(health[1])}</span></header>
+</head><body>
+<header class="bar"><span class="brand">Quantum threat tracker</span><span class="upd">Updated {e(updated)}</span></header>
 <main class="page">
-<div class="page-head"><div><h1>Cheapest known quantum attacks</h1>
-<p class="lede">Published resource estimates only. Every figure comes from a quote that was checked against the paper's text,
-and nothing here is earlier than what has been publicly announced.</p></div>
-<span class="pill">Updated {e(fmt_time(st.get("run_at")))}</span></div>
-{alert}
-<div class="cols c-3-2">
-<section class="panel" aria-labelledby="h-low"><header><h2 id="h-low">Lowest published figures, by target</h2>
-<span class="sub">{len(rows)} verified estimates</span></header>
-{table_summary}
-<p class="note">Qubit counts depend on each paper's assumptions (qubit type, error rate, error-correcting code).
-Figures from different architectures are not directly comparable, so read the quote before comparing them.</p></section>
-<div>
-<section class="panel mb" aria-labelledby="h-date"><header><h2 id="h-date">Earliest break date</h2>
-<span class="sub">not computed</span></header>
-<div class="empty"><strong>Needs two more datasets</strong><p>A date needs announced hardware (qubits, error rates, roadmaps) and the list of systems
-each key protects. Neither has been collected yet, so no date is shown.</p></div></section>
-<section class="panel" aria-labelledby="h-run"><header><h2 id="h-run">Last run</h2></header>
-<dl class="kv">{kv_html}</dl></section></div></div>
-<section class="panel mb" aria-labelledby="h-all"><header><h2 id="h-all">All estimates</h2>
-<span class="sub">sorted by target, then physical qubits</span></header>{table_all}</section>
-<section class="panel" aria-labelledby="h-radar"><header><h2 id="h-radar">Radar (unreviewed)</h2>
-<span class="sub">{len(radar)} items</span></header>{radar_panel}</section>
-<footer><span>Data: <a href="data/attacks.json">attacks.json</a>, <a href="data/status.json">status.json</a></span>
-<span>Models propose and code verifies. Two model families must agree before a row is applied.</span></footer>
-</main></body></html>"""
+<section class="hero"><h1>How close is quantum computing to breaking today's encryption?</h1>
+<p class="lede">Today's security holds because nobody can build a big enough quantum computer. Researchers keep publishing smaller
+designs. Each dot below is one of those papers, showing how many qubits it says would be needed. Lower means closer. Click a dot to read the paper's own words.</p>
+<div class="hls">{tiles(rows, present)}</div></section>
+{alert}{body}
+<section class="notes"><h2>How to read this</h2>
+<dl><div><dt>Qubit</dt><dd>The basic unit of a quantum computer, like a bit in an ordinary one. Breaking encryption takes many of them working together.</dd></div>
+<div><dt>Physical vs. error-corrected</dt><dd>A physical qubit is one real piece of hardware. Error-corrected (logical) qubits are built from many physical ones, so they are not comparable with the charted numbers.</dd></div>
+<div><dt>Not a countdown</dt><dd>This shows how big a machine would have to be. It does not yet track how big machines are today, so it cannot say when. Each paper assumes its own kind of hardware, so look at the trend and not at exact comparisons.</dd></div></dl></section>
+{radar_html}
+<footer><span>Every figure is a sentence quoted from the paper and checked against its text.</span><a href="data/attacks.json">Raw data</a></footer>
+</main>{"".join(f'<script src="{e(s)}" defer></script>' for s in scripts)}</body></html>"""
     (out / "index.html").write_text(page)
     return out
 

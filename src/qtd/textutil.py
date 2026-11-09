@@ -64,21 +64,30 @@ def parse_number(text: str):
 
 
 _UNIT_H = {"minute": 1 / 60, "hour": 1, "day": 24, "week": 168, "month": 730, "year": 8760}
+_UNITS = r"(?P<u>minutes?|mins?|hours?|hrs?|h|days?|d|weeks?|wks?|months?|years?|yrs?)\b"
 DUR_RE = re.compile(
-    r"(?P<n>\d+(?:\.\d+)?|a|an|one|two|three|four|five|six|seven|eight|nine|ten)\s*"
-    r"(?:-|\s)?(?P<u>minute|hour|day|week|month|year)s?\b",
+    r"\b(?:(?P<n>\d+(?:\.\d+)?)\s*(?:-)?|(?P<w>a|an|one|two|three|four|five|six|seven|eight|nine|ten)[\s-]+)" + _UNITS,
     re.I,
 )
 
 
+def _unit(u: str) -> float:
+    u = u.lower()
+    if u.startswith("mo"):
+        return _UNIT_H["month"]
+    for prefix, key in (("mi", "minute"), ("h", "hour"), ("d", "day"), ("w", "week"), ("y", "year")):
+        if u.startswith(prefix):
+            return _UNIT_H[key]
+    raise ValueError(u)
+
+
 def parse_hours(text: str):
-    """Parse a duration like 'less than a week' or '8 days' into hours, or None."""
+    """Parse a duration like 'less than a week', '8 days' or '9 h' into hours, or None."""
     m = DUR_RE.search(text or "")
     if not m:
         return None
-    n = m.group("n").lower()
-    n = _WORDNUM.get(n) if n in _WORDNUM else float(n)
-    return n * _UNIT_H[m.group("u").lower()]
+    n = float(m.group("n")) if m.group("n") else _WORDNUM[m.group("w").lower()]
+    return n * _unit(m.group("u"))
 
 
 # Canonical targets. Cost depends on family and size, so a paper updates a family.

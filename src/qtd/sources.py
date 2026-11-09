@@ -57,6 +57,12 @@ def fetch_arxiv(max_results: int = 50, queries=None):
     return items
 
 
+def fetch_arxiv_ids(ids):
+    """Fetch specific arXiv papers by id (used to build the baseline)."""
+    q = urllib.parse.urlencode({"id_list": ",".join(ids), "max_results": len(ids)})
+    return parse_arxiv(http.get("https://export.arxiv.org/api/query?" + q))
+
+
 def parse_eprint(xml_bytes: bytes):
     items = []
     root = ET.fromstring(xml_bytes)
