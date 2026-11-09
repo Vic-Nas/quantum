@@ -1,4 +1,9 @@
-"""Daily run: fetch, dedupe, prefilter, regex baseline, optional model stages, verify, route."""
+"""Daily run: fetch, dedupe, prefilter, regex baseline, model stages, verify, route, auto-apply.
+
+Policy: automation may only make the security picture look worse. A Tier A row is a cheaper
+attack or a new hardware claim, so it is applied automatically, behind automatic brakes
+(canary check, per-run cap) and every change is one reversible commit.
+"""
 import datetime as dt
 import json
 from pathlib import Path
@@ -8,6 +13,9 @@ from .prefilter import prefilter
 from .verify import any_agrees, verify
 
 DATA = Path("data")
+MAX_ATTEMPTS = 6      # give up on an item after this many failed model runs
+MAX_AUTO_PER_RUN = 3  # more new headline rows than this in one run is held for a person
+ROWS = {"attack": "attacks.json", "hardware": "hardware.json"}
 
 
 def _verified(extraction, item):
@@ -15,9 +23,9 @@ def _verified(extraction, item):
 
 
 def process(item: dict, rows: list, use_llm: bool) -> dict:
-    """Run one item through every stage. Returns its audit trail with a tier per estimate."""
+    """Run one item through every stage. Raises llm.LLMError if the models are unavailable."""
     rec = {"id": item["id"], "version": item["version"], "url": item["url"], "title": item["title"],
-           "published": item["published"], "models": dict(llm.MODELS), "tier": "drop", "reason": "", "estimates": [], "trail": {}}
+           "published": item["published"], "tier": "drop", "reason": "", "estimates": [], "trail": {}}
     pf = prefilter(item)
     rec["trail"]["prefilter"] = pf
     rx = regex_extract.extract(f"{item['title']}. {item['text']}")
@@ -29,66 +37,145 @@ def process(item: dict, rows: list, use_llm: bool) -> dict:
     if not use_llm:
         rec["tier"], rec["reason"] = "B", "no model run (regex only)"
         return rec
-    try:
-        c = stages.coarse(item, llm.MODELS["coarse"])
-        rec["trail"]["coarse"] = c
-        if not c.get("relevant"):
-            rec["reason"] = "coarse filter"
-            return rec
-        ex1 = stages.extract(item, llm.MODELS["primary"])
-        v1 = _verified(ex1, item)
-        rec["trail"]["primary"] = {"extraction": ex1, "estimates": v1["estimates"]}
-        ex2, v2 = None, None
-        needs_second = [e for e in v1["ok_estimates"]
-                        if v1["kind"] == "hardware" or router.is_frontier(e["values"], rows)]
-        if needs_second:
-            ex2 = stages.extract(item, llm.MODELS["secondary"])
-            v2 = _verified(ex2, item)
-            rec["trail"]["secondary"] = {"extraction": ex2, "estimates": v2["estimates"]}
-        for e in v1["estimates"]:
-            second = bool(v2) and e["ok"] and any_agrees(e["values"], v2["ok_estimates"])
-            tier, why = router.route(v1["kind"], e["ok"], e["values"], second, rows)
-            rec["estimates"].append({"values": e["values"], "quote": e["quote"], "tier": tier, "reason": why,
-                                     "regex_agrees": e["ok"] and any_agrees(e["values"], rx_v["ok_estimates"])})
-        order = {"A": 0, "B": 1, "drop": 2}
-        best = min(rec["estimates"], key=lambda x: order[x["tier"]], default=None)
-        rec["tier"], rec["reason"] = (best["tier"], best["reason"]) if best else ("drop", "no estimates")
-    except llm.LLMError as e:
-        rec["tier"], rec["reason"] = "B", f"model error: {e}"
+    c, m = llm.call_chain("coarse", lambda mod: stages.coarse(item, mod))
+    rec["trail"]["coarse"] = {**c, "model": m}
+    if not c.get("relevant"):
+        rec["reason"] = "coarse filter"
+        return rec
+    ex1, m1 = llm.call_chain("primary", lambda mod: stages.extract(item, mod))
+    v1 = _verified(ex1, item)
+    rec["trail"]["primary"] = {"model": m1, "extraction": ex1, "estimates": v1["estimates"]}
+    v2, m2 = None, None
+    needs = [e for e in v1["ok_estimates"]
+             if v1["kind"] == "hardware" or router.is_frontier(e["values"], rows)]
+    if needs:
+        ex2, m2 = llm.call_chain("secondary", lambda mod: stages.extract(item, mod))
+        v2 = _verified(ex2, item)
+        rec["trail"]["secondary"] = {"model": m2, "extraction": ex2, "estimates": v2["estimates"]}
+    independent = bool(m2) and llm.family(m1) != llm.family(m2)
+    for e in v1["estimates"]:
+        second = independent and e["ok"] and any_agrees(e["values"], v2["ok_estimates"] if v2 else [])
+        tier, why = router.route(v1["kind"], e["ok"], e["values"], second, rows)
+        if v2 and not independent and tier == "A":
+            tier, why = "B", "second model is the same family as the first"
+        rec["estimates"].append({"kind": v1["kind"], "values": e["values"], "quote": e["quote"], "tier": tier,
+                                 "reason": why, "regex_agrees": e["ok"] and any_agrees(e["values"], rx_v["ok_estimates"])})
+    order = {"A": 0, "B": 1, "drop": 2}
+    best = min(rec["estimates"], key=lambda x: order[x["tier"]], default=None)
+    rec["tier"], rec["reason"] = (best["tier"], best["reason"]) if best else ("drop", "no estimates")
+    rec["models"] = {"primary": m1, "secondary": m2}
     return rec
 
 
-def _comment(rec: dict) -> str:
-    """Templated PR comment built only from verified facts and quotes (no free-form model prose)."""
-    lines = [f"### {rec['title']}", rec["url"], "", "| tier | values | regex agrees | verbatim quote |",
-             "|---|---|---|---|"]
-    for e in rec["estimates"]:
-        lines.append(f"| {e['tier']} ({e['reason']}) | {e['values']} | {e['regex_agrees']} | {e['quote']} |")
-    return "\n".join(lines) + "\n"
+def canary(n: int = 2) -> dict:
+    """Re-check known papers WITHOUT the cache. If the models fail, auto-apply is switched off."""
+    gold = [json.loads(l) for l in (DATA / "gold" / "gold.jsonl").read_text().splitlines() if l.strip()]
+    picks = [g for g in gold if g.get("canary")][:n]
+    if not picks:
+        return {"ok": True, "skipped": "no canary items"}
+    try:
+        for g in picks:
+            ex, _ = llm.call_chain("primary", lambda mod: llm.generate(
+                mod, stages.EXTRACT_PROMPT.format(title=g["title"], text=g["text"]), stages.EXTRACT_SCHEMA,
+                use_cache=False))
+            ests = [{"quote": e.get("quote", ""), "fields": {f["name"]: f["value"] for f in e.get("fields", [])}}
+                    for e in ex.get("estimates", [])]
+            v = verify({"kind": ex.get("kind"), "estimates": ests}, f"{g['title']} {g['text']}")
+            for want in g["estimates"]:
+                from .evaluate import _match
+                if not any(_match(e["values"], want) for e in v["ok_estimates"]):
+                    return {"ok": False, "failed": g["id"], "missing": want}
+    except llm.LLMError as e:
+        return {"ok": False, "error": str(e)}
+    return {"ok": True}
 
 
-def run(use_llm: bool = True, limit: int | None = None, items: list | None = None):
-    """Run the pipeline. Returns a summary dict. Writes audit trail, radar and Tier A proposals."""
+def _row(rec: dict, est: dict, n: int) -> dict:
+    vals = {k: (round(v, 6) if isinstance(v, float) else v) for k, v in est["values"].items()}
+    return {"id": f"{rec['id']}#{n}", "kind": est["kind"], **vals, "quote": est["quote"],
+            "url": rec["url"], "title": rec["title"], "published": rec["published"],
+            "added": dt.date.today().isoformat(), "models": rec.get("models"),
+            "verification": "auto: verifier + two model families agree", "regex_agrees": est["regex_agrees"]}
+
+
+def _load(path, default):
+    return json.loads(path.read_text()) if path.exists() else default
+
+
+def run(use_llm: bool = True, limit: int | None = None, items: list | None = None,
+        auto_apply: bool = True, dry: bool = False, max_auto: int = MAX_AUTO_PER_RUN,
+        check_canary: bool = True):
+    """Run the pipeline. dry=True writes nothing. Returns a summary dict."""
     errors = {}
     if items is None:
         items, errors = sources.fetch_all()
-    seen_path = DATA / "seen.json"
-    seen = set(json.loads(seen_path.read_text())) if seen_path.exists() else set()
-    rows = router.load_rows()
-    fresh = [i for i in items if f"{i['id']}@{i['version']}" not in seen][:limit]
+    seen = set(_load(DATA / "seen.json", []))
+    queue = _load(DATA / "queue.json", {})
+    rows = {k: _load(DATA / f, []) for k, f in ROWS.items()}
+    work = [(i, queue.get(f"{i['id']}@{i['version']}", {}).get("attempts", 0)) for i in items
+            if f"{i['id']}@{i['version']}" not in seen]
+    queued_keys = {f"{i['id']}@{i['version']}" for i in items}
+    work += [(q["item"], q["attempts"]) for k, q in queue.items() if k not in queued_keys]
+    work = work[:limit]
     month = dt.date.today().strftime("%Y-%m")
-    (DATA / "candidates").mkdir(parents=True, exist_ok=True)
-    (DATA / "proposals").mkdir(parents=True, exist_ok=True)
-    counts = {"A": 0, "B": 0, "drop": 0}
-    with open(DATA / "candidates" / f"{month}.jsonl", "a") as out:
-        for it in fresh:
-            rec = process(it, rows, use_llm)
-            counts[rec["tier"]] += 1
-            out.write(json.dumps(rec) + "\n")
-            if rec["tier"] == "A":
-                name = rec["id"].replace(":", "_").replace("/", "_")
-                (DATA / "proposals" / f"{name}.json").write_text(json.dumps(rec, indent=1))
-                (DATA / "proposals" / f"{name}.md").write_text(_comment(rec))
-            seen.add(f"{it['id']}@{it['version']}")
-    seen_path.write_text(json.dumps(sorted(seen)))
-    return {"fetched": len(items), "new": len(fresh), "counts": counts, "source_errors": errors}
+    counts = {"A": 0, "B": 0, "drop": 0, "retry": 0, "gave_up": 0}
+    recs, applied, held = [], [], []
+    for it, attempts in work:
+        key = f"{it['id']}@{it['version']}"
+        try:
+            rec = process(it, rows["attack"], use_llm)
+        except llm.LLMError as e:
+            attempts += 1
+            if attempts >= MAX_ATTEMPTS:
+                counts["gave_up"] += 1
+                seen.add(key)
+                queue.pop(key, None)
+                recs.append({"id": it["id"], "version": it["version"], "url": it["url"], "title": it["title"],
+                             "tier": "B", "reason": f"models unavailable after {attempts} tries: {e}",
+                             "estimates": [], "trail": {}})
+            else:
+                counts["retry"] += 1
+                queue[key] = {"item": it, "attempts": attempts, "last_error": str(e)[:200]}
+            continue
+        counts[rec["tier"]] += 1
+        queue.pop(key, None)
+        seen.add(key)
+        recs.append(rec)
+    gate = canary() if (check_canary and use_llm and auto_apply and any(r["tier"] == "A" for r in recs)) else {"ok": True}
+    new_a = [(r, e) for r in recs for e in r["estimates"] if e["tier"] == "A"]
+    allow = auto_apply and gate["ok"] and len(new_a) <= max_auto
+    for n, (r, e) in enumerate(new_a):
+        (applied if allow else held).append((r, e, n))
+    if not dry:
+        (DATA / "candidates").mkdir(parents=True, exist_ok=True)
+        (DATA / "proposals").mkdir(parents=True, exist_ok=True)
+        if use_llm:
+            with open(DATA / "candidates" / f"{month}.jsonl", "a") as out:
+                for r in recs:
+                    out.write(json.dumps(r) + "\n")
+            for r, e, n in applied:
+                rows[e["kind"]].append(_row(r, e, n))
+            for kind, f in ROWS.items():
+                (DATA / f).write_text(json.dumps(rows[kind], indent=1))
+            for r, e, n in held:
+                name = r["id"].replace(":", "_").replace("/", "_") + f"_{n}"
+                (DATA / "proposals" / f"{name}.json").write_text(json.dumps({"rec": r, "est": e, "gate": gate}, indent=1))
+            (DATA / "seen.json").write_text(json.dumps(sorted(seen)))
+            (DATA / "queue.json").write_text(json.dumps(queue, indent=1))
+    summary = {"fetched": len(items), "processed": len(work), "counts": counts, "source_errors": errors,
+               "auto_applied": len(applied), "held": len(held), "gate": gate,
+               "queue_size": len(queue), "dry": dry or not use_llm}
+    if not dry and use_llm:
+        (DATA / "status.json").write_text(json.dumps(
+            {**summary, "run_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")}, indent=1))
+    return summary
+
+
+def seed():
+    """One-time bootstrap: run the hand-picked gold papers through the normal path and apply all
+    Tier A rows, so later runs compare against a real baseline instead of an empty table."""
+    gold = [json.loads(l) for l in (DATA / "gold" / "gold.jsonl").read_text().splitlines() if l.strip()]
+    items = [{"id": g["id"], "version": "seed", "source": "arxiv", "title": g["title"], "text": g["text"],
+              "url": "https://arxiv.org/abs/" + g["id"].split(":", 1)[1], "published": "", "updated": ""}
+             for g in gold if g["relevant"]]
+    return run(items=items, max_auto=10**6, check_canary=False)

@@ -1,0 +1,108 @@
+import json
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from unittest import mock
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+from qtd import llm, pipeline  # noqa: E402
+
+TEXT = ("We estimate that 2048-bit RSA integers can be factored in less than a week using "
+        "fewer than a million noisy qubits. Shor factoring needs logical qubits and Toffoli gates.")
+QUOTE = ("We estimate that 2048-bit RSA integers can be factored in less than a week using "
+         "fewer than a million noisy qubits.")
+
+
+def item(n=1):
+    return {"id": f"arxiv:9999.{n:05d}", "version": "1", "source": "arxiv", "url": f"https://arxiv.org/abs/9999.{n:05d}",
+            "title": "Shor RSA resource estimate", "text": TEXT, "published": "2026-11-01", "updated": ""}
+
+
+def fake_chain(fail=False, same_family=False, relevant=True):
+    def chain(role, fn):
+        if fail:
+            raise llm.LLMError("503 unavailable")
+        if role == "coarse":
+            return {"relevant": relevant, "reason": "x"}, "gemma-4-26b-a4b-it"
+        ex = {"kind": "attack", "estimates": [{"quote": QUOTE, "fields": {"target": "RSA-2048", "physical_qubits": "a million"}}]}
+        model = {"primary": "gemini-3.5-flash-lite", "secondary": "gemini-3.1-flash-lite" if same_family else "gemma-4-31b-it"}[role]
+        return ex, model
+    return chain
+
+
+class Pipeline(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        pipeline.DATA = Path(self.tmp)
+        (Path(self.tmp) / "gold").mkdir()
+        (Path(self.tmp) / "gold" / "gold.jsonl").write_text("")
+
+    def read(self, name):
+        return json.loads((Path(self.tmp) / name).read_text())
+
+    def test_two_families_auto_apply(self):
+        with mock.patch.object(llm, "call_chain", fake_chain()), mock.patch.object(pipeline, "canary", lambda: {"ok": True}):
+            r = pipeline.run(items=[item()])
+        self.assertEqual((r["counts"]["A"], r["auto_applied"], r["held"]), (1, 1, 0))
+        row = self.read("attacks.json")[0]
+        self.assertEqual((row["target"], row["physical_qubits"]), ("rsa-2048", 1e6))
+        self.assertIn("rsa", row["quote"].lower())
+
+    def test_same_family_is_not_enough(self):
+        with mock.patch.object(llm, "call_chain", fake_chain(same_family=True)):
+            r = pipeline.run(items=[item()])
+        self.assertEqual((r["counts"]["A"], r["counts"]["B"], r["auto_applied"]), (0, 1, 0))
+
+    def test_failed_canary_holds_everything(self):
+        with mock.patch.object(llm, "call_chain", fake_chain()), mock.patch.object(pipeline, "canary", lambda: {"ok": False}):
+            r = pipeline.run(items=[item()])
+        self.assertEqual((r["auto_applied"], r["held"]), (0, 1))
+        self.assertEqual(self.read("attacks.json"), [])
+        self.assertEqual(len(list((Path(self.tmp) / "proposals").glob("*.json"))), 1)
+
+    def test_cap_holds_burst(self):
+        with mock.patch.object(llm, "call_chain", fake_chain()), mock.patch.object(pipeline, "canary", lambda: {"ok": True}):
+            r = pipeline.run(items=[item(n) for n in range(1, 6)])
+        self.assertEqual((r["auto_applied"], r["held"]), (0, 5))
+
+    def test_models_down_queues_then_recovers_then_gives_up(self):
+        with mock.patch.object(llm, "call_chain", fake_chain(fail=True)):
+            r = pipeline.run(items=[item()])
+        self.assertEqual((r["counts"]["retry"], r["queue_size"]), (1, 1))
+        self.assertEqual(self.read("seen.json"), [])  # not lost
+        with mock.patch.object(llm, "call_chain", fake_chain()), mock.patch.object(pipeline, "canary", lambda: {"ok": True}):
+            r = pipeline.run(items=[])  # retried from the queue, no refetch needed
+        self.assertEqual((r["processed"], r["queue_size"], r["auto_applied"]), (1, 0, 1))
+        with mock.patch.object(llm, "call_chain", fake_chain(fail=True)):
+            for _ in range(pipeline.MAX_ATTEMPTS):
+                r = pipeline.run(items=[item(2)])
+        self.assertEqual((r["counts"]["gave_up"], r["queue_size"]), (1, 0))
+
+    def test_dry_run_writes_nothing(self):
+        with mock.patch.object(llm, "call_chain", fake_chain()):
+            pipeline.run(items=[item()], dry=True)
+        self.assertFalse((Path(self.tmp) / "seen.json").exists())
+
+    def test_irrelevant_dropped_by_coarse(self):
+        with mock.patch.object(llm, "call_chain", fake_chain(relevant=False)):
+            r = pipeline.run(items=[item()])
+        self.assertEqual(r["counts"]["drop"], 1)
+
+
+class Chain(unittest.TestCase):
+    def test_falls_through_and_reports_model(self):
+        calls = []
+
+        def fn(m):
+            calls.append(m)
+            if m == llm.CHAINS["primary"][0]:
+                raise llm.LLMError("404 retired")
+            return "ok"
+        self.assertEqual(llm.call_chain("primary", fn), ("ok", llm.CHAINS["primary"][1]))
+        with self.assertRaises(llm.LLMError):
+            llm.call_chain("primary", lambda m: (_ for _ in ()).throw(llm.LLMError("down")))
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -1,0 +1,20 @@
+{
+ "fetched": 5,
+ "processed": 5,
+ "counts": {
+  "A": 5,
+  "B": 0,
+  "drop": 0,
+  "retry": 0,
+  "gave_up": 0
+ },
+ "source_errors": {},
+ "auto_applied": 8,
+ "held": 0,
+ "gate": {
+  "ok": true
+ },
+ "queue_size": 0,
+ "dry": false,
+ "run_at": "2026-11-09T00:20:03+00:00"
+}

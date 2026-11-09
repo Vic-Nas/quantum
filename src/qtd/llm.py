@@ -17,11 +17,35 @@ import urllib.request
 from pathlib import Path
 
 CACHE = Path(os.environ.get("QTD_CACHE", "data/cache"))
-# Roles: a cheap filter, a bulk extractor, and an independent extractor from a different family.
-MODELS = {"coarse": os.environ.get("QTD_MODEL_COARSE", "gemma-4-26b-a4b-it"),
-          "primary": os.environ.get("QTD_MODEL_PRIMARY", "gemini-3.5-flash-lite"),
-          "secondary": os.environ.get("QTD_MODEL_SECONDARY", "gemma-4-31b-it"),
-          "escalation": os.environ.get("QTD_MODEL_ESCALATION", "gemini-3.8-flash")}
+# Roles with ordered fallback chains. Names get retired, so each role can fall through.
+CHAINS = {
+    "coarse": ["gemma-4-26b-a4b-it", "gemini-3.1-flash-lite"],
+    "primary": ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite"],
+    "secondary": ["gemma-4-31b-it", "gemma-4-26b-a4b-it"],
+    "escalation": ["gemini-3.8-flash", "gemini-3.6-flash"],
+}
+for _role in CHAINS:  # env override puts a model first in its chain
+    _env = os.environ.get(f"QTD_MODEL_{_role.upper()}")
+    if _env:
+        CHAINS[_role] = [_env] + [m for m in CHAINS[_role] if m != _env]
+MODELS = {role: chain[0] for role, chain in CHAINS.items()}
+
+
+def family(model: str) -> str:
+    return "gemma" if model.startswith("gemma") else "gemini"
+
+
+def call_chain(role: str, fn):
+    """Try each model in the role's chain. fn(model) -> result. Returns (result, model_used)."""
+    last = None
+    for model in CHAINS[role]:
+        try:
+            return fn(model), model
+        except LLMError as e:
+            last = e
+    raise LLMError(f"all models failed for role {role}: {last}")
+
+
 # model -> (min seconds between calls, requests per day). Interval covers both RPM and TPM.
 LIMITS = {"gemini-3.5-flash-lite": (4.6, 500), "gemini-3.1-flash-lite": (4.6, 500),
           "gemma-4-26b-a4b-it": (5.0, 14400), "gemma-4-31b-it": (5.0, 14400)}

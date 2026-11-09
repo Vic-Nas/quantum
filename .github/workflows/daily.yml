@@ -1,0 +1,84 @@
+name: daily-update
+
+on:
+  schedule:
+    - cron: "17 5 * * *"    # daily run
+    - cron: "17 17 * * *"   # second pass: retries anything queued while models were unavailable
+  workflow_dispatch:
+    inputs:
+      command:
+        description: "What to run"
+        type: choice
+        options: [run, seed, eval]
+        default: run
+      dry:
+        description: "Dry run (no model calls, writes nothing)"
+        type: boolean
+        default: false
+      hold_all:
+        description: "Hold every new row for review instead of applying it"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: daily-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      PYTHONPATH: src
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Restore model cache and quota counters
+        uses: actions/cache@v4
+        with:
+          path: data/cache
+          key: qtd-cache-${{ github.run_id }}
+          restore-keys: qtd-cache-
+      - name: Tests must pass before anything runs
+        run: python -m unittest discover -s tests
+      - name: Run
+        id: run
+        run: |
+          CMD="${{ inputs.command || 'run' }}"
+          ARGS=""
+          if [ "${{ inputs.dry }}" = "true" ]; then ARGS="$ARGS --no-llm"; fi
+          if [ "${{ inputs.hold_all }}" = "true" ]; then ARGS="$ARGS --no-auto"; fi
+          if [ "$CMD" = "run" ]; then python -m qtd run $ARGS | tee out.json
+          else python -m qtd $CMD | tee out.json; fi
+          { echo '### qtd output'; echo '```json'; cat out.json; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - name: Commit data changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/attacks.json data/hardware.json data/seen.json data/queue.json data/status.json data/candidates data/proposals 2>/dev/null || true
+          if git diff --cached --quiet; then echo "no data changes"; exit 0; fi
+          git commit -m "data: update $(date -u +%Y-%m-%d)"
+          git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}"
+      - name: Build site
+        run: python -m qtd.site site
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: update
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
