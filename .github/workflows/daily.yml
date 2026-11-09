@@ -35,6 +35,7 @@ jobs:
     timeout-minutes: 60
     env:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      QTD_SITE_URL: ${{ vars.QTD_SITE_URL }}
       PYTHONPATH: src
     steps:
       - uses: actions/checkout@v4

@@ -11,7 +11,13 @@ from . import cards
 from .present import best_by_target, clean, count, duration, label, paper_id
 
 WEB = Path("web")
-BASE_URL = os.environ.get("QTD_SITE_URL", "https://vic-nas.github.io/quantum/")
+DEFAULT_URL = "https://vic-nas.github.io/quantum/"
+
+
+def base_url() -> str:
+    """Public address from QTD_SITE_URL (a repo variable). Empty or unset falls back to the default."""
+    url = (os.environ.get("QTD_SITE_URL") or "").strip() or DEFAULT_URL
+    return url if url.endswith("/") else url + "/"
 EXT = '<svg class="ext" aria-hidden="true"><use href="#i-ext"/></svg>'
 SPRITE = ('<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="i-ext" viewBox="0 0 12 12">'
           '<path d="M4 2h6v6M10 2 3 9" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>'
@@ -105,7 +111,7 @@ def build(out="site", data="data"):
     st_path = data / "status.json"
     st = json.loads(st_path.read_text()) if st_path.exists() else {}
     as_of = (st.get("run_at") or "")[:10]
-    card = cards.home_card(rows, as_of, BASE_URL)
+    card = cards.home_card(rows, as_of, base_url())
     gate_ok = (st.get("gate") or {}).get("ok", True)
     problems = list((st.get("source_errors") or {}).items())
     health = ("bad", "Needs attention") if (problems or not gate_ok) else (("ok", "Pipeline healthy") if st else ("warn", "No run yet"))

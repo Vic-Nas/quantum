@@ -74,6 +74,16 @@ class Cards(unittest.TestCase):
         self.assertNotIn("\n", c["description"])
 
 
+class BaseUrl(unittest.TestCase):
+    def test_env_empty_and_slash(self):
+        import os
+        from unittest import mock
+        with mock.patch.dict(os.environ, {"QTD_SITE_URL": ""}):
+            self.assertEqual(site.base_url(), site.DEFAULT_URL)
+        with mock.patch.dict(os.environ, {"QTD_SITE_URL": "https://x.example/app"}):
+            self.assertEqual(site.base_url(), "https://x.example/app/")
+
+
 class Build(unittest.TestCase):
     def build(self, rows, status=None, cands=None):
         d, out = Path(tempfile.mkdtemp()), Path(tempfile.mkdtemp()) / "site"
