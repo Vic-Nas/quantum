@@ -74,6 +74,19 @@ class Run(unittest.TestCase):
         self.assertEqual(out["changed"], 0)
         self.assertEqual(self.stored()["SSH"]["pq_status"], "none")
 
+    def test_a_hand_edit_is_safe_without_any_flag(self):
+        edit = {"kind": "pq", "topic": "SSH", "answer": "none", "note": "my edit"}
+        (self.d / "facts.json").write_text(json.dumps({"SSH": edit}))
+        out = self.go([])
+        self.assertEqual(out["changed"], 0)
+        self.assertEqual(self.stored()["SSH"], edit)
+
+    def test_seeded_and_machine_entries_are_replaced(self):
+        (self.d / "facts.json").write_text(json.dumps({"SSH": {"answer": "none", "seed": True}}))
+        self.go([GOOD, GOOD])
+        self.assertEqual(self.stored()["SSH"]["answer"], "protected")
+        self.assertNotIn("seed", self.stored()["SSH"])
+
     def test_unchanged_page_is_not_asked_again(self):
         self.go([GOOD, GOOD])
         out = self.go([])

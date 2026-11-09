@@ -4,20 +4,23 @@
   "group": "ecdlp-256",
   "label": "in outputs whose public key is already visible",
   "answer": "about 6.3 million BTC",
-  "url": "https://chaincode.com/bitcoin-post-quantum.pdf"
+  "url": "https://chaincode.com/bitcoin-post-quantum.pdf",
+  "seed": true
  },
  "btc-dormant": {
   "kind": "figure",
   "group": "ecdlp-256",
   "label": "dormant and unlikely to ever move to safe addresses",
   "answer": "about 2.3 million BTC",
-  "url": "https://arxiv.org/pdf/2606.14484"
+  "url": "https://arxiv.org/pdf/2606.14484",
+  "seed": true
  },
  "eth-exposed": {
   "kind": "figure",
   "group": "ecdlp-256",
   "label": "of all ETH has an exposed key at rest, by one estimate",
   "answer": "50 to 65%",
-  "url": "https://arxiv.org/pdf/2606.14484"
+  "url": "https://arxiv.org/pdf/2606.14484",
+  "seed": true
  }
 }

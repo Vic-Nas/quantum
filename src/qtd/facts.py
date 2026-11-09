@@ -1,8 +1,10 @@
 """Facts that sources can supply: post-quantum status of services, funds exposed to a quantum attack.
 
 Each configured page is re-read when it changes. Two models answer one closed question about it, code checks that the
-quote is verbatim in the page and that the answer is in the quote, and both models must agree. Entries marked
-"manual": true in data/facts.json are a person's call and are never touched.
+quote is verbatim in the page and that the answer is in the quote, and both models must agree.
+
+Only entries this pipeline wrote (they carry "models") or that were seeded ("seed": true) are ever replaced. Anything
+else in data/facts.json is a person's edit and is never touched, with or without "manual": true.
 """
 import datetime as dt
 import hashlib
@@ -51,6 +53,10 @@ def _flat(s: str) -> str:
     return norm(s).lower().replace(",", "").replace(" ", "")
 
 
+def is_person(entry: dict) -> bool:
+    return bool(entry) and not entry.get("models") and not entry.get("seed")
+
+
 def prompt(src: dict, title: str, text: str) -> str:
     if src["kind"] == "pq":
         return PQ_PROMPT.format(topic=src["topic"], what=src["what"], title=title, text=text)
@@ -86,7 +92,7 @@ def run(dry: bool = False, only: list | None = None) -> dict:
     summary = {"sources": len(srcs), "changed": 0, "applied": 0, "unconfirmed": 0, "unavailable": 0, "errors": {}}
     pages = {}
     for s in srcs:
-        if facts.get(s["id"], {}).get("manual"):
+        if is_person(facts.get(s["id"], {})):
             continue
         if not sources.is_allowlisted(s["url"]):
             summary["errors"][s["id"]] = "host not on the allowlist"
@@ -133,9 +139,9 @@ def run(dry: bool = False, only: list | None = None) -> dict:
         if {k: entry.get(k) for k in ("answer", "quote")} != {k: facts.get(s["id"], {}).get(k) for k in ("answer", "quote")}:
             summary["applied"] += 1
         facts[s["id"]] = entry
-    # Services nothing can read: a person adds one line to data/facts.json with "manual": true.
+    # Services nothing can read: a person adds one line to data/facts.json, e.g. {"WhatsApp": {"pq_status": "none", "note": "..."}}.
     covered = {s["topic"] for s in _load(DATA / "facts_sources.json", []) if s["kind"] == "pq"}
-    summary["needs_a_person"] = sorted(n for n, *_ in SERVICES if n not in covered and not facts.get(n, {}).get("manual"))
+    summary["needs_a_person"] = sorted(n for n, *_ in SERVICES if n not in covered and not is_person(facts.get(n, {})))
     if not dry:
         (DATA / "facts.json").write_text(json.dumps(facts, indent=1) + "\n")
         (DATA / "facts_seen.json").write_text(json.dumps(seen, indent=1) + "\n")
