@@ -370,7 +370,8 @@ def threat_body(crow, rows, hw_rows, depth):
                f'{effects}'
                f'<p class="d-note">{e(SECURES_NOTE)}</p></aside>')
 
-    summary = ""
+    intro = ""
+    source = ""
     if not crow["safe"]:
         dated = [ln for ln in crow["lines"] if ln.get("year")]
         primary = min(dated, key=lambda l: l["year"]) if dated else crow["lines"][0]
@@ -386,17 +387,17 @@ def threat_body(crow, rows, hw_rows, depth):
             text += f' {e(s["actor"])} plans {e(ms)} by {e(yl)}.'
         if r.get("runtime") is not None:
             text += f' Runs in about {e(duration(r["runtime"]))}.'
-        summary += f'<p class="t-summary">{text}</p>'
+        intro = f'<p class="t-summary">{text}</p>'
         kicker = f'{e(date_label(r.get("published", "")) or "date unknown")} · {e(paper_id(r["id"]))}'
-        summary += (f'<div class="d-source"><p class="d-kicker">{kicker}</p>'
-                    f'<h3>{e(clean(r["title"], 160))}</h3>'
-                    f'<blockquote>{e(clean(r["quote"], 700))}</blockquote>'
-                    f'<a class="read" href="{e(r["url"])}">Read the paper</a></div>')
+        source = (f'<div class="d-source"><p class="d-kicker">{kicker}</p>'
+                  f'<h3>{e(clean(r["title"], 160))}</h3>'
+                  f'<blockquote>{e(clean(r["quote"], 700))}</blockquote>'
+                  f'<a class="read" href="{e(r["url"])}">Read the paper</a></div>')
     else:
         parts = [CONSEQUENCE.get(ln["target"], "") for ln in crow["lines"]]
-        summary = "".join(f'<p class="t-summary">{e(x)}</p>' for x in parts if x)
+        intro = "".join(f'<p class="t-summary">{e(x)}</p>' for x in parts if x)
 
-    top = f'<div class="t-top"><div class="t-main">{summary}</div>{context}</div>'
+    top = f'{intro}{context}{source}'
 
     prog = ""
     for t in all_targets:
@@ -425,7 +426,7 @@ def threat_body(crow, rows, hw_rows, depth):
                 actors.setdefault(hw["actor"], []).append(hw)
             hw_cards = "".join(vendor_timeline_html(a, ents) for a, ents in sorted(actors.items()))
             hw_section = (f'<section class="t-section"><h2>Hardware that could deliver</h2>'
-                          f'<p class="dim">Vendor announcements with enough qubits for this attack.</p>'
+                          f'<p class="dim">Vendor announcements with enough qubits.</p>'
                           f'<div class="vendor-grid">{hw_cards}</div></section>')
 
     target_papers = sorted([r for r in rows if r.get("target") in all_targets],

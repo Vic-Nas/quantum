@@ -10,7 +10,7 @@
 .t-what{margin:4px 0 0;color:var(--ink-dim);font-size:14px}
 .t-summary{font-size:15px;line-height:1.55;margin:0 0 16px}
 .t-summary strong{font-weight:700}
-.t-section{margin:28px 0 0}
+.t-section{margin:18px 0 0}
 .t-section h2{margin:0 0 10px;font-size:16px;font-weight:650;letter-spacing:-.01em}
 .r-section{margin:24px 0 0}
 .r-section h2{margin:0 0 10px;font-size:16px;font-weight:650;letter-spacing:-.01em}
@@ -28,11 +28,9 @@
 .d-source blockquote{margin:0;padding:10px 12px;background:var(--surface);border-left:3px solid var(--accent);border-radius:0 var(--radius-sm) var(--radius-sm) 0;font-size:13px;line-height:1.55}
 .d-source .read{display:inline-block;margin-top:10px;font-size:13px;font-weight:600}
 
-/* Top two-column layout: summary left, context right */
-.t-top{display:grid;grid-template-columns:1fr 340px;gap:0 28px;align-items:start}
-.t-main{min-width:0}
-.t-context{padding:16px 18px;background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);box-shadow:var(--shadow)}
-.t-context>div+div{margin-top:14px;padding-top:14px;border-top:1px solid var(--rule)}
+/* Context panel: inline two-column grid */
+.t-context{display:grid;grid-template-columns:1fr 1fr;gap:0 24px;margin:16px 0 0;padding:16px 18px;background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);box-shadow:var(--shadow)}
+.t-context .d-note{grid-column:1/-1}
 h4{margin:0 0 5px;font-size:12px;font-weight:650;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.04em}
 .t-context ul{margin:0;padding-left:16px;font-size:13.5px;line-height:1.55}
 .t-context li{margin:0 0 4px}
@@ -58,7 +56,7 @@ h4{margin:0 0 5px;font-size:12px;font-weight:650;color:var(--ink-dim);text-trans
 .rm-source{display:inline-block;margin-top:10px;font-size:13px;font-weight:600}
 
 /* Progress chart */
-.prog{width:100%;height:auto;max-height:220px}
+.prog{width:100%;height:auto;max-height:280px}
 
 /* Chart page */
 .chartwrap{margin-top:10px;background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 10px 8px}
@@ -101,7 +99,6 @@ h4{margin:0 0 5px;font-size:12px;font-weight:650;color:var(--ink-dim);text-trans
 .radar{margin-top:26px}.radar summary{cursor:pointer;color:var(--ink-dim)}.radar ul{padding-left:18px}
 
 @media (max-width:900px){
-  .t-top{grid-template-columns:1fr}
-  .t-context{margin-top:14px}
+  .t-context{grid-template-columns:1fr}
   .tl-wide{display:none}.tl-narrow{display:block}
 }
