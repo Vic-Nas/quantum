@@ -83,12 +83,12 @@ jobs:
         run: bash scripts/commit_data.sh
       - name: Decide whether to publish
         id: flag
-        run: |
-          if [ "${{ steps.mode.outputs.cmd }}" != "retry" ] || [ "${{ steps.commit.outputs.changed }}" = "true" ]; then
-            echo "deploy=true" >> "$GITHUB_OUTPUT"; else echo "deploy=false" >> "$GITHUB_OUTPUT"; fi
+        run: bash scripts/should_deploy.sh "${{ steps.mode.outputs.cmd }}" "${{ steps.commit.outputs.changed }}"
       - name: Build site
         if: steps.flag.outputs.deploy == 'true'
-        run: python -m qtd.site site
+        run: |
+          python -m qtd.site site
+          git rev-parse HEAD > site/build.txt
       - uses: actions/upload-pages-artifact@v3
         if: steps.flag.outputs.deploy == 'true'
         with:

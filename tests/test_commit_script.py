@@ -69,3 +69,41 @@ class CommitScript(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+DEPLOY = Path(__file__).resolve().parents[1] / "scripts" / "should_deploy.sh"
+
+
+class ShouldDeploy(unittest.TestCase):
+    def setUp(self):
+        self.repo = Path(tempfile.mkdtemp())
+        git(self.repo, "init", "-q", "-b", "main")
+        (self.repo / "a").write_text("a")
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "x")
+        self.head = git(self.repo, "rev-parse", "HEAD").strip()
+
+    def decide(self, mode, changed, live=None):
+        out = self.repo / "out.txt"
+        out.write_text("")
+        env = {**os.environ, "GITHUB_OUTPUT": str(out), "GIT_CONFIG_GLOBAL": "/dev/null"}
+        env.pop("QTD_SITE_URL", None)
+        if live is not None:
+            env["QTD_LIVE_STAMP"] = live
+        subprocess.run(["bash", str(DEPLOY), mode, changed], cwd=self.repo, check=True, capture_output=True, env=env)
+        return out.read_text().strip()
+
+    def test_daily_and_push_runs_always_publish(self):
+        self.assertEqual(self.decide("run", "false", self.head), "deploy=true")
+        self.assertEqual(self.decide("none", "false", self.head), "deploy=true")
+
+    def test_frequent_run_publishes_when_data_changed(self):
+        self.assertEqual(self.decide("retry", "true", self.head), "deploy=true")
+
+    def test_frequent_run_skips_when_live_site_is_current(self):
+        self.assertEqual(self.decide("retry", "false", self.head), "deploy=false")
+
+    def test_frequent_run_heals_a_stale_or_unreadable_live_site(self):
+        self.assertEqual(self.decide("retry", "false", "0" * 40), "deploy=true")
+        self.assertEqual(self.decide("retry", "false", ""), "deploy=true")
+        self.assertEqual(self.decide("retry", "false"), "deploy=true")
