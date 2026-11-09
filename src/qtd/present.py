@@ -215,3 +215,24 @@ def sci(n) -> str:
         return f"{n:,.0f}"
     exp = len(f"{int(n):d}") - 1
     return f"{n / 10 ** exp:.1f} \u00d7 10{str(exp).translate(_SUP)}"
+
+
+# One line per attack on the single chart: (data target, short label, the algorithms it stands for, status).
+CHART_GROUPS = [
+    ("ecdlp-256", "256-bit curves", "secp256k1 (Bitcoin, Ethereum), P-256, Curve25519 and Ed25519", "broken"),
+    ("rsa-2048", "RSA-2048", "RSA keys", "broken"),
+    ("ecdlp-384", "P-384, BLS12-381", "P-384 and larger curves, and the BLS12-381 pairing curve", "broken"),
+    ("dlp-ff-512", "Finite-field DH", "finite-field Diffie-Hellman and DSA (512-bit field shown)", "broken"),
+    ("aes-128", "AES-128", "AES-128", "weakened"),
+    ("sha-256", "SHA-256", "SHA-256 and other hashes", "weakened"),
+]
+
+# Hand-written: what a break would mean, for the groups SECURES does not cover.
+CONSEQUENCE = {
+    "ecdlp-384": "Government and enterprise connections and signed code could be forged, recorded traffic could be read later, and "
+                 "Ethereum validator signatures (BLS12-381) could be forged.",
+    "dlp-ff-512": "Older connections that use finite-field Diffie-Hellman could be decrypted. Real keys are larger than 512 bits, "
+                  "so this is the earliest it could possibly happen.",
+    "aes-128": "Not broken, only weakened: a quantum computer would need far too many steps in a row. Using AES-256 removes the concern.",
+    "sha-256": "Not broken, only weakened: the attack needs an astronomically long chain of steps. Longer hash outputs remove the concern.",
+}

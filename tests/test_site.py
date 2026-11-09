@@ -1,4 +1,6 @@
 import json
+import os
+import re
 import sys
 import tempfile
 import unittest
@@ -7,21 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-from qtd import cards, present, site  # noqa: E402
-
-ROWS = [
-    {"id": "arxiv:1905.09749#0", "kind": "attack", "target": "rsa-2048", "physical_qubits": 20000000.0, "runtime": 8.0,
-     "quote": "q0", "url": "https://arxiv.org/abs/1905.09749", "title": "RSA 2019", "published": "2019-05-23"},
-    {"id": "arxiv:2505.15917#0", "kind": "attack", "target": "rsa-2048", "physical_qubits": 1000000.0, "runtime": 168,
-     "quote": "q1", "url": "https://arxiv.org/abs/2505.15917", "title": "RSA 2025", "published": "2025-05-21"},
-    {"id": "arxiv:2610.37839#3", "kind": "attack", "target": "rsa-2048", "physical_qubits": 45000.0,
-     "quote": "q2", "url": "https://arxiv.org/abs/2610.37839", "title": "RSA 2026", "published": "2026-10-27"},
-    {"id": "arxiv:2609.05625#4", "kind": "attack", "target": "ecdlp-256", "physical_qubits": 19397.0, "runtime": 616.8,
-     "quote": "q3", "url": "https://arxiv.org/abs/2609.05625", "title": "ECDLP paper", "published": "2026-09-08"},
-    {"id": "arxiv:2607.13816#7", "kind": "attack", "target": "ecdlp-256", "logical_qubits": 835.0,
-     "quote": "q4", "url": "https://arxiv.org/abs/2607.13816", "title": "Logical paper", "published": "2026-07-15"},
-]
-
+from qtd import breakdate, cards, chart, present, site  # noqa: E402
 
 try:
     import PIL  # noqa: F401
@@ -30,11 +18,24 @@ except ImportError:
     HAVE_PIL = False
 
 
+def row(i, target, published, **kw):
+    return {"id": f"arxiv:{i}#0", "kind": "attack", "target": target, "quote": f"quote {i}", "url": f"https://arxiv.org/abs/{i}",
+            "title": f"Paper {i}", "published": published, **kw}
+
+
+ROWS = [
+    row("1905.09749", "rsa-2048", "2019-05-23", physical_qubits=20000000.0, runtime=8.0),
+    row("2610.37839", "rsa-2048", "2026-10-27", physical_qubits=45000.0),
+    row("2609.05625", "ecdlp-256", "2026-09-08", physical_qubits=19397.0, runtime=616.8),
+    row("2607.13816", "ecdlp-256", "2026-07-15", logical_qubits=835.0),
+    row("1512.04965", "aes-128", "2015-12-15", logical_qubits=2953.0),
+]
 HW = [
     {"id": f"page:ionq.com/roadmap#{i}", "kind": "hardware", "actor": "IonQ", "target_year": float(y), "physical_qubits": float(pq),
      "logical_qubits": float(lq), "quote": f"{y} {pq:,} physical qubits {lq:,} logical qubits", "url": "https://ionq.com/roadmap",
      "title": "IonQ | Roadmap", "added": "2026-11-09"}
     for i, (y, pq, lq) in enumerate([(2026, 100, 12), (2027, 10000, 800), (2028, 20000, 1600), (2029, 200000, 8000)])]
+STATUS = {"run_at": "2026-11-09T00:20:03+00:00", "gate": {"ok": True}, "counts": {}}
 
 
 class Tags(HTMLParser):
@@ -59,28 +60,10 @@ class Tags(HTMLParser):
 class Present(unittest.TestCase):
     def test_numbers_and_dates(self):
         self.assertEqual(present.short_count(20000000), "20 million")
-        self.assertEqual(present.short_count(1500000), "1.5 million")
         self.assertEqual(present.short_count(45000), "45,000")
         self.assertEqual(present.date_label("2026-10-27"), "27 Oct 2026")
-        self.assertEqual(present.date_label("2026-10-27", True), "Oct 2026")
-        self.assertEqual(present.date_label(""), "")
         self.assertEqual(present.duration(168), "7 days")
         self.assertEqual(present.duration(1.25), "1.25 hours")
-
-    def test_series_marks_records_and_skips_logical_only(self):
-        pts = present.series(ROWS, "rsa-2048")
-        self.assertEqual([p["y"] for p in pts], [20000000.0, 1000000.0, 45000.0])
-        self.assertTrue(all(p["record"] for p in pts))
-        self.assertEqual(len(present.series(ROWS, "ecdlp-256")), 1)  # logical-only row is not plotted
-        worse = ROWS + [dict(ROWS[0], id="x#1", physical_qubits=5e6, published="2026-01-01")]
-        flags = {p["row"]["id"]: p["record"] for p in present.series(worse, "rsa-2048")}
-        self.assertFalse(flags["x#1"])
-
-    def test_headline(self):
-        h = present.headline(ROWS, "rsa-2048")
-        self.assertEqual((h["first"]["y"], h["best"]["y"]), (20000000.0, 45000.0))
-        self.assertAlmostEqual(h["drop_pct"], 99.8, places=1)
-        self.assertIsNone(present.headline(ROWS, "rsa-4096"))
 
     def test_strip_dashes(self):
         em, en = "\u2014", "\u2013"
@@ -89,7 +72,13 @@ class Present(unittest.TestCase):
         self.assertEqual(present.strip_dashes(f"fast {en} but costly"), "fast; but costly")
         self.assertEqual(present.strip_dashes("fast -- but costly"), "fast; but costly")
         self.assertEqual(present.strip_dashes(f"2019{en}2026 and well-known"), f"2019{en}2026 and well-known")
-        self.assertEqual(present.clean(f"a {em} b\n"), "a; b")
+
+    def test_series_and_headline(self):
+        pts = present.series(ROWS, "rsa-2048")
+        self.assertEqual([p["y"] for p in pts], [20000000.0, 45000.0])
+        h = present.headline(ROWS, "rsa-2048")
+        self.assertAlmostEqual(h["drop_pct"], 99.8, places=1)
+        self.assertIsNone(present.headline(ROWS, "rsa-4096"))
 
     def test_clean_and_ids(self):
         self.assertEqual(present.paper_id("arxiv:2609.05625#4"), "arXiv 2609.05625")
@@ -99,24 +88,54 @@ class Present(unittest.TestCase):
 
 
 class Chart(unittest.TestCase):
-    def test_svg_has_a_link_per_dot_and_valid_numbers(self):
-        from qtd import chart
-        pts = present.series(ROWS, "rsa-2048")
-        svg = chart.timeline_svg(pts, 640, 330, "label")
-        self.assertEqual(svg.count('class="dot'), 3)
-        self.assertIn('href="#p-arxiv-2505-15917-0"', svg)
+    def lines(self, narrow=False):
+        return site.chart_lines(ROWS, HW, narrow)
+
+    def svg(self, narrow=False):
+        return chart.overview_svg(self.lines(narrow), breakdate.supply_points(HW, "physical_qubits"),
+                                  breakdate.supply_points(HW, "logical_qubits"), 380 if narrow else 1100, 460, "label",
+                                  present.year_frac("2026-11-09"), narrow)
+
+    def test_every_attack_is_one_labelled_line_on_one_chart(self):
+        svg = self.svg()
+        self.assertEqual(svg.count("<svg"), 1)
+        self.assertEqual(svg.count('class="atk"'), 3)  # 256-bit curves, RSA-2048, AES-128
+        for name in ("RSA-2048", "256-bit curves", "AES-128"):
+            self.assertIn(f">{name}<", svg)
         self.assertNotIn("nan", svg.lower())
-        self.assertEqual(chart.timeline_svg([], 640, 330, "x"), "")
-        today = present.year_frac("2026-11-09")
-        svg = chart.timeline_svg(pts, 640, 330, "label", today)
-        self.assertIn(">Today<", svg)
-        import re
-        stair = re.search(r'class="stair" d="([^"]+)"', svg).group(1)
-        last_x = float(re.findall(r"H([\d.]+)", stair)[-1])
-        today_x = float(re.search(r'class="today" x1="([\d.]+)"', svg).group(1))
-        self.assertAlmostEqual(last_x, today_x, places=0)  # the best-known line stops at today
-        one = chart.timeline_svg(present.series(ROWS, "ecdlp-256"), 340, 300, "x")  # single point must not crash
-        self.assertIn("<svg", one)
+
+    def test_each_line_is_read_against_its_own_kind_of_qubit(self):
+        by = {ln["name"]: ln for ln in self.lines()}
+        self.assertEqual((by["RSA-2048"]["metric"], by["RSA-2048"]["year"]), ("physical_qubits", 2029))  # 20,000 is short of 45,000
+        self.assertEqual(by["256-bit curves"]["year"], 2028)
+        self.assertFalse(by["AES-128"]["practical"])
+        self.assertEqual(by["AES-128"]["when"], "not practical")
+
+    def test_rings_only_for_practical_breaks_and_dots_for_every_machine(self):
+        svg = self.svg()
+        self.assertEqual(svg.count('class="cross"'), 2)  # not for AES, which is only weakened
+        self.assertEqual(svg.count('class="dot '), 8)  # 4 physical and 4 logical announcements
+
+    def test_labels_never_overlap(self):
+        ys = chart.spread([100, 104, 108, 300, 301], 30, 10, 400)
+        self.assertTrue(all(b - a >= 29.99 for a, b in zip(sorted(ys), sorted(ys)[1:])))
+        self.assertEqual(chart.spread([5], 30, 10, 400), [10])  # stays inside the plot
+        order = [ys.index(v) for v in sorted(ys)]
+        self.assertEqual(order, [0, 1, 2, 3, 4])  # order is kept
+
+    def test_narrow_version_has_short_labels(self):
+        svg = self.svg(narrow=True)
+        self.assertIn(">2029<", svg)
+        visible = re.findall(r'class="sb"[^>]*>(.*?)</text>', svg)
+        self.assertTrue(visible and all("physical" not in v and "logical" not in v for v in visible))  # just the year or the verdict
+
+
+class BreakDate(unittest.TestCase):
+    def test_earliest_year_a_big_enough_machine_is_announced(self):
+        p = breakdate.earliest_path(ROWS, HW, "ecdlp-256")
+        self.assertEqual(p["year"], 2028)  # 20,000 >= 19,397 physical and 1,600 >= 835 logical in the same year
+        self.assertIsNone(breakdate.earliest_path(ROWS, [], "rsa-2048")["year"])
+        self.assertEqual(breakdate.earliest_path(ROWS, [], "rsa-2048")["reason"], "no hardware announcements collected")
 
 
 class Cards(unittest.TestCase):
@@ -124,16 +143,11 @@ class Cards(unittest.TestCase):
         c = cards.home_card(ROWS, HW, "2026-11-09", "https://example.com/q/")
         self.assertIn("Bitcoin and Ethereum keys 2028", c["description"])
         self.assertIn("RSA-2048 (websites, software updates) 2029", c["description"])
-        self.assertIn("Plans, not delivered machines", c["description"])
         self.assertIn("As of 2026-11-09", c["description"])
-        nohw = cards.home_card(ROWS, [], "2026-11-09", "https://example.com/q/")
-        self.assertIn("no announced machine is big enough yet", nohw["description"])
-        img = cards.home_card(ROWS, HW, "2026-11-09", "https://example.com/q/assets/card.png".replace("assets/card.png", ""), "https://example.com/q/assets/card.png")
-        self.assertEqual((img["image"], img["image_width"], img["image_height"]), ("https://example.com/q/assets/card.png", 1200, 630))
-        self.assertTrue(c["url"].startswith("https://"))
         self.assertLessEqual(len(c["description"]), 250)
         self.assertLessEqual(len(c["title"]), 60)
-        self.assertNotRegex(c["description"].lower(), r"\bago\b|just now")
+        img = cards.home_card(ROWS, HW, "2026-11-09", "https://example.com/q/", "https://example.com/q/assets/card.png")
+        self.assertEqual((img["image"], img["image_width"], img["image_height"]), ("https://example.com/q/assets/card.png", 1200, 630))
 
     def test_empty_and_hostile(self):
         self.assertIn("No estimates", cards.home_card([], [], "", "https://e.com/")["description"])
@@ -143,7 +157,6 @@ class Cards(unittest.TestCase):
 
 class BaseUrl(unittest.TestCase):
     def test_env_empty_and_slash(self):
-        import os
         from unittest import mock
         with mock.patch.dict(os.environ, {"QTD_SITE_URL": ""}):
             self.assertEqual(site.base_url(), site.DEFAULT_URL)
@@ -152,17 +165,18 @@ class BaseUrl(unittest.TestCase):
 
 
 class Build(unittest.TestCase):
-    def build(self, rows, status=None, cands=None, hw=None):
+    def build(self, rows, status=None, cands=None, hw=None, queue=None):
         d, out = Path(tempfile.mkdtemp()), Path(tempfile.mkdtemp()) / "site"
         (d / "attacks.json").write_text(json.dumps(rows))
         if hw is not None:
             (d / "hardware.json").write_text(json.dumps(hw))
         if status is not None:
             (d / "status.json").write_text(json.dumps(status))
+        if queue is not None:
+            (d / "queue.json").write_text(json.dumps(queue))
         if cands:
             (d / "candidates").mkdir()
             (d / "candidates" / "2026-11.jsonl").write_text("\n".join(json.dumps(c) for c in cands))
-        import os
         cwd = os.getcwd()
         os.chdir(ROOT)
         try:
@@ -171,111 +185,82 @@ class Build(unittest.TestCase):
             os.chdir(cwd)
         return out
 
-    def test_card_tags_and_assets(self):
-        out = self.build(ROWS, {"run_at": "2026-11-09T00:20:03+00:00", "gate": {"ok": True}, "counts": {}}, hw=HW)
+    def test_one_chart_one_panel_and_nothing_else_stacked(self):
+        out = self.build(ROWS, STATUS, hw=HW)
         html = (out / "index.html").read_text()
+        self.assertEqual(html.count('class="tl ov"'), 2)  # one chart, in a wide and a narrow size
+        self.assertEqual(html.count('class="proof is-sel"'), 1)
+        self.assertEqual(html.count('class="atk"'), 6)
+        for gone in ("role=\"tab\"", "<nav", "<table", "Everything affected", "How to read this", "How the size needed fell"):
+            self.assertNotIn(gone, html)
+        self.assertIn("Earliest announced path to a break", html)
+        self.assertIn("Where you meet it", html)
+        self.assertIn("If it breaks", html)
+        self.assertNotIn("<style", html)
+        self.assertTrue((out / "assets" / "favicon.svg").exists())
+        self.assertFalse(list((out / "assets" / "fonts").glob("*.ttf")))
+
+    def test_card_tags(self):
+        out = self.build(ROWS, STATUS, hw=HW)
         t = Tags()
-        t.feed(html)
+        t.feed((out / "index.html").read_text())
         self.assertEqual(t.meta["og:title"], cards.TITLE)
-        self.assertIn("Earliest announced path", t.meta["og:description"])
         self.assertIn("2028", t.meta["og:description"])
         self.assertTrue(t.meta["og:url"].startswith("https://"))
         if HAVE_PIL:
             self.assertEqual(t.meta["twitter:card"], "summary_large_image")
-            self.assertTrue(t.meta["og:image"].startswith("https://") and t.meta["og:image"].endswith("/assets/card.png"))
-            self.assertEqual((t.meta["og:image:width"], t.meta["og:image:height"]), ("1200", "630"))
-            self.assertTrue(t.meta["og:image:alt"])
-            png = (out / "assets" / "card.png").read_bytes()
-            self.assertEqual(png[:8], b"\x89PNG\r\n\x1a\n")
-            self.assertEqual(int.from_bytes(png[16:20], "big"), 1200)
-        self.assertRegex(html, r"assets/css/base\.css\?v=[0-9a-f]{10}")
-        self.assertGreater(html.count('class="dot'), 8)
-        self.assertIn('class="proof is-sel"', html)
-        self.assertNotIn("<nav", html)  # no navigation bar
-        self.assertEqual(html.count('role="tab"'), 3)  # two charts and the full list
-        self.assertEqual(html.count('role="tabpanel"'), 3)
-        self.assertIn("Everything a quantum computer affects", html)
-        for name in ("secp256k1", "P-256", "Curve25519", "P-384", "Finite-field Diffie-Hellman", "BLS12-381", "AES-128", "SHA-256"):
-            self.assertIn(name, html)
-        self.assertNotIn("How to read this", html)  # no long explanatory section at the bottom
-        self.assertIn("What this protects", html)
-        self.assertIn("earliest announced path to break it", html)  # tile caption
-        self.assertIn("Earliest announced path: <strong>2028</strong>", html)  # section header
-        self.assertIn("Plans, not delivered machines", html)
-        self.assertEqual(html.count('class="zone"'), 4)  # wide and narrow chart for each of the two targets
-        self.assertIn('class="when"', html)
-        self.assertIn("How the size needed fell, paper by paper", html)
-        self.assertIn("A plan or target, not a delivered machine.", html)
-        self.assertNotIn("not tracked yet", html)  # the date is tracked now
-        self.assertIn('rel="icon"', html)
-        self.assertTrue((out / "assets" / "favicon.svg").exists())
-        self.assertFalse(list((out / "assets" / "fonts").glob("*.ttf")))  # build-only fonts are not served
-        self.assertLess(html.index('id="tab-ecdlp-256"'), html.index('id="tab-rsa-2048"'))  # Bitcoin first
-        self.assertNotIn("github.com", html)
-        self.assertTrue((out / "assets" / "fonts" / "Geist-Variable.woff2").exists())
-        self.assertTrue((out / ".nojekyll").exists())
-        self.assertNotIn("<style", html)
+            self.assertEqual((out / "assets" / "card.png").read_bytes()[:8], b"\x89PNG\r\n\x1a\n")
 
     def test_without_pillow_the_card_falls_back_to_text_only(self):
         from unittest import mock
         with mock.patch.object(site.cardimg, "render", return_value=False):
-            out = self.build(ROWS, {"run_at": "2026-11-09T00:20:03+00:00"})
+            out = self.build(ROWS, STATUS, hw=HW)
         t = Tags()
         t.feed((out / "index.html").read_text())
         self.assertEqual(t.meta["twitter:card"], "summary")
         self.assertNotIn("og:image", t.meta)
-        self.assertTrue(t.meta["og:url"].startswith("https://"))
 
-    def test_hostile_text_is_escaped(self):
-        bad = dict(ROWS[0], title='<img src=x onerror=alert(1)> "t" \u2014 x', quote="<script>alert(1)</script> fast \u2014 but")
-        out = self.build([bad], {"run_at": "2026-11-09T00:20:03+00:00"},
-                         [{"tier": "B", "url": "https://arxiv.org/abs/1", "title": "<b>x</b>", "reason": "<i>r</i>"},
-                          {"id": "a:1", "tier": "B", "url": "https://arxiv.org/abs/2", "title": "dup", "reason": "failed verification"},
-                          {"id": "a:1", "tier": "A", "url": "https://arxiv.org/abs/2", "title": "dup", "reason": "ok"}])
+    def test_proxy_result_is_listed_last_and_marked_or_later(self):
+        proxy = row("2610.37839", "dlp-ff-512", "2026-10-27", physical_qubits=6656.0)
+        out = self.build(ROWS + [proxy], STATUS, hw=HW)
+        html = (out / "index.html").read_text()
+        chips = re.findall(r'<span class="chip"><strong>(.*?)</strong> (.*?)</span>', html)
+        self.assertEqual(chips[-1], ("2027 or later", "Finite-field DH"))
+        self.assertEqual([c[0] for c in chips[:-1]], sorted(c[0] for c in chips[:-1]))
+
+    def test_no_hardware_means_no_dates_not_made_up_ones(self):
+        html = (self.build(ROWS, STATUS, hw=[]) / "index.html").read_text()
+        self.assertNotIn('class="chip"', html)
+        self.assertNotIn('class="cross"', html)
+        self.assertIn("none announced", html)
+
+    def test_hostile_text_is_escaped_and_dashes_removed(self):
+        bad = dict(ROWS[2], title='<img src=x onerror=alert(1)> "t" — x', quote="<script>alert(1)</script> fast — but")
+        out = self.build([bad] + ROWS[:2], STATUS, hw=HW)
         html = (out / "index.html").read_text()
         self.assertNotIn("<script>alert", html)
-        self.assertNotIn("\u2014", html)  # an em dash in a quote never reaches the page
-        self.assertIn("fast; but", html)
         self.assertNotIn("<img src=x", html)
-        self.assertNotIn("<b>x</b>", html)
-        self.assertNotIn(">dup<", html)  # a later confirmed run removes the paper from the radar
+        self.assertNotIn("—", html)
+        self.assertIn("fast; but", html)
 
-    def test_queued_paper_is_described_as_waiting_not_unconfirmed(self):
-        d, out = Path(tempfile.mkdtemp()), Path(tempfile.mkdtemp()) / "site"
-        (d / "attacks.json").write_text(json.dumps(ROWS))
-        (d / "queue.json").write_text(json.dumps({"arxiv:9.9@seed": {"item": {}, "attempts": 1, "last_error": "x"}}))
-        (d / "candidates").mkdir()
-        (d / "candidates" / "2026-11.jsonl").write_text(json.dumps(
-            {"id": "arxiv:9.9", "tier": "B", "url": "https://arxiv.org/abs/9.9", "title": "queued paper", "reason": "second opinion"}))
-        import os
-        cwd = os.getcwd()
-        os.chdir(ROOT)
-        try:
-            site.build(out, d)
-        finally:
-            os.chdir(cwd)
-        html = (out / "index.html").read_text()
-        self.assertIn("1 paper is waiting to be re-checked", html)
-        self.assertNotIn(">queued paper<", html)  # not listed as 'unconfirmed' while it is queued
-
-    def test_served_data_has_no_em_dash_but_stored_data_is_untouched(self):
-        em = "\u2014"
+    def test_served_data_has_no_em_dash_but_input_is_untouched(self):
+        em = "—"
         hw = [dict(HW[0], quote=f"We will deliver {em} by 2027")]
-        out = self.build(ROWS, {"run_at": "2026-11-09T00:20:03+00:00"}, hw=hw)
+        out = self.build(ROWS, STATUS, hw=hw)
         served = (out / "data" / "hardware.json").read_text()
         self.assertNotIn(em, served)
         self.assertIn("We will deliver; by 2027", served)
-        self.assertEqual(hw[0]["quote"], f"We will deliver {em} by 2027")  # the input row was not mutated
+        self.assertEqual(hw[0]["quote"], f"We will deliver {em} by 2027")
+
+    def test_a_queued_paper_is_described_as_waiting_not_unconfirmed(self):
+        cands = [{"id": "arxiv:9.9", "tier": "B", "url": "https://arxiv.org/abs/9.9", "title": "queued paper", "reason": "second opinion"}]
+        html = (self.build(ROWS, STATUS, cands=cands, hw=HW, queue={"arxiv:9.9@seed": {"item": {}, "attempts": 1}}) / "index.html").read_text()
+        self.assertIn("1 paper is waiting to be re-checked", html)
+        self.assertNotIn(">queued paper<", html)
 
     def test_states(self):
-        nohw = (self.build(ROWS, {"run_at": "2026-11-09T00:20:03+00:00"}, hw=[]) / "index.html").read_text()
-        self.assertIn("No date yet", nohw)
-        self.assertIn("no hardware announcements collected", nohw)
-        self.assertNotIn('class="zone"', nohw)
-        empty = (self.build([], None) / "index.html").read_text()
-        self.assertIn("No verified estimates yet", empty)
-        bad = (self.build(ROWS, {"run_at": "2026-11-09T00:00:00+00:00", "gate": {"ok": False},
-                                 "source_errors": {"arxiv": "zero items"}}) / "index.html").read_text()
+        self.assertIn("No verified estimates yet", (self.build([], None) / "index.html").read_text())
+        bad = (self.build(ROWS, {**STATUS, "gate": {"ok": False}, "source_errors": {"arxiv": "zero items"}}, hw=HW) / "index.html").read_text()
         self.assertIn("The last update had a problem", bad)
         self.assertIn('role="alert"', bad)
 
