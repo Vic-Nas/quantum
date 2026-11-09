@@ -105,6 +105,15 @@ def date_label(iso: str, short: bool = False) -> str:
         return ""
 
 
+def datetime_label(iso: str) -> str:
+    """'2026-11-09T05:21:03+00:00' -> '9 Nov 2026, 05:21 UTC'. Falls back to the date alone when there is no time."""
+    day = date_label(iso)
+    t = str(iso)[11:16]
+    if day and len(t) == 5 and t[2] == ":" and t.replace(":", "").isdigit():
+        return f"{day}, {t} UTC"
+    return day
+
+
 def year_frac(iso: str):
     try:
         y, m, d = (int(x) for x in str(iso)[:10].split("-"))

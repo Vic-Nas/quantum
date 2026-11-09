@@ -370,5 +370,13 @@ class Build(unittest.TestCase):
         self.assertIn("Bitcoin", t2.meta["og:title"])
 
 
+class Header(unittest.TestCase):
+    def test_updated_shows_the_time_and_github_link(self):
+        from qtd.present import datetime_label
+        self.assertEqual(datetime_label("2026-11-09T05:21:03+00:00"), "9 Nov 2026, 05:21 UTC")
+        self.assertEqual(datetime_label("2026-11-09"), "9 Nov 2026")
+        self.assertEqual(datetime_label(""), "")
+
+
 if __name__ == "__main__":
     unittest.main()
