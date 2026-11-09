@@ -236,3 +236,12 @@ CONSEQUENCE = {
     "aes-128": "Not broken, only weakened: a quantum computer would need far too many steps in a row. Using AES-256 removes the concern.",
     "sha-256": "Not broken, only weakened: the attack needs an astronomically long chain of steps. Longer hash outputs remove the concern.",
 }
+
+# The countdown on the front page: what a newcomer cares about, in plain words. (title, what it covers, data targets).
+COUNTDOWN = [
+    ("Bitcoin, Ethereum and crypto wallets", "Also Signal, SSH and WireGuard logins: all use the same 256-bit curves", ["ecdlp-256"]),
+    ("Websites and software updates", "RSA keys behind HTTPS certificates and signed code", ["rsa-2048"]),
+    ("Government connections and Ethereum validators", "P-384 and BLS12-381", ["ecdlp-384"]),
+    ("Older VPN and SSH setups", "Finite-field Diffie-Hellman. Real keys are bigger than the 512 bits studied, so later", ["dlp-ff-512"]),
+    ("Disk encryption and passwords", "AES-128 and SHA-256 are only weakened, not broken", ["aes-128", "sha-256"]),
+]

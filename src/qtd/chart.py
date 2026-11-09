@@ -73,7 +73,10 @@ def overview_svg(lines, supply_phys, supply_log, width, height, label, today, na
                 stair.append(("M" if top is None else "V") + (f"{px(p['year'] + 0.5):.1f} {py(p['y']):.1f}" if top is None else f"{py(p['y']):.1f}"))
                 top = p["y"]
         if stair:
-            out.append(f'<path class="stair sup {kind}" d="{"".join(stair)}H{px(x1 - 0.2):.1f}" fill="none"/>')
+            d = f"{''.join(stair)}H{px(x1 - 0.2):.1f}"
+            if kind == "phys":  # a soft fill shows the size of machine that can be built, growing over time
+                out.append(f'<path class="area" d="{d}V{height - b}H{px(pts[0]["year"] + 0.5):.1f}Z"/>')
+            out.append(f'<path class="stair sup {kind}" d="{d}" fill="none"/>')
     # attack lines with direct labels at the right edge
     xr = width - r
     want = [py(ln["need"]) for ln in lines]
@@ -89,7 +92,8 @@ def overview_svg(lines, supply_phys, supply_log, width, height, label, today, na
                    f'<text class="nm" x="{xr + 12:.1f}" y="{ly - 1:.1f}">{_e(ln["name"])}</text>'
                    f'<text class="sb" x="{xr + 12:.1f}" y="{ly + 12:.1f}">{_e(ln["sub"])}</text></a>')
         if ln.get("year") and ln["practical"]:
-            out.append(f'<circle class="cross" cx="{px(ln["year"] + 0.5):.1f}" cy="{y:.1f}" r="6.5"/>')
+            cx = f"{px(ln['year'] + 0.5):.1f}"
+            out.append(f'<circle class="halo" cx="{cx}" cy="{y:.1f}" r="9"/><circle class="cross" cx="{cx}" cy="{y:.1f}" r="7"/>')
     for pts, kind in ((supply_phys, "phys"), (supply_log, "log")):
         for p in pts:
             hid = dom_id(p["row"]["id"])

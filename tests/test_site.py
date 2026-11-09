@@ -113,7 +113,7 @@ class Chart(unittest.TestCase):
 
     def test_rings_only_for_practical_breaks_and_dots_for_every_machine(self):
         svg = self.svg()
-        self.assertEqual(svg.count('class="cross"'), 2)  # not for AES, which is only weakened
+        self.assertEqual(svg.count('class="cross"'), 2)  # one ring per practical break, each with a halo behind it  # not for AES, which is only weakened
         self.assertEqual(svg.count('class="dot '), 8)  # 4 physical and 4 logical announcements
 
     def test_labels_never_overlap(self):
@@ -193,7 +193,7 @@ class Build(unittest.TestCase):
         self.assertEqual(html.count('class="atk"'), 6)
         for gone in ("role=\"tab\"", "<nav", "<table", "Everything affected", "How to read this", "How the size needed fell"):
             self.assertNotIn(gone, html)
-        self.assertIn("Earliest announced path to a break", html)
+        self.assertIn("When could quantum computers break the encryption you use?", html)
         self.assertIn("Where you meet it", html)
         self.assertIn("If it breaks", html)
         self.assertNotIn("<style", html)
@@ -220,19 +220,42 @@ class Build(unittest.TestCase):
         self.assertEqual(t.meta["twitter:card"], "summary")
         self.assertNotIn("og:image", t.meta)
 
-    def test_proxy_result_is_listed_last_and_marked_or_later(self):
-        proxy = row("2610.37839", "dlp-ff-512", "2026-10-27", physical_qubits=6656.0)
-        out = self.build(ROWS + [proxy], STATUS, hw=HW)
-        html = (out / "index.html").read_text()
-        chips = re.findall(r'<span class="chip"><strong>(.*?)</strong> (.*?)</span>', html)
-        self.assertEqual(chips[-1], ("2027 or later", "Finite-field DH"))
-        self.assertEqual([c[0] for c in chips[:-1]], sorted(c[0] for c in chips[:-1]))
+    def countdown(self, html):
+        """(title, year text or verdict) for each countdown row, in page order."""
+        out = []
+        for block in re.findall(r'<button class="row[^"]*".*?</button>', html, re.S):
+            title = re.search(r"<strong>(.*?)</strong>", block).group(1)
+            year = re.search(r"<b>(.*?)</b>", block) or re.search(r'class="safe">(.*?)<', block)
+            out.append((title, year.group(1) if year else ""))
+        return out
 
-    def test_no_hardware_means_no_dates_not_made_up_ones(self):
-        html = (self.build(ROWS, STATUS, hw=[]) / "index.html").read_text()
-        self.assertNotIn('class="chip"', html)
-        self.assertNotIn('class="cross"', html)
-        self.assertIn("none announced", html)
+    def test_front_page_answers_the_bitcoin_question_first(self):
+        proxy = row("2610.37839", "dlp-ff-512", "2026-10-27", physical_qubits=6656.0)
+        html = (self.build(ROWS + [proxy], STATUS, hw=HW) / "index.html").read_text()
+        rows = self.countdown(html)
+        self.assertEqual(rows[0], ("Bitcoin, Ethereum and crypto wallets", "2028"))  # the thing a newcomer cares about, first
+        self.assertIn('class="row first"', html)
+        self.assertEqual(dict(rows)["Websites and software updates"], "2029")
+        self.assertEqual(dict(rows)["Older VPN and SSH setups"], "2027 or later")  # a smaller-size result can only be a lower bound
+        self.assertEqual(dict(rows)["Disk encryption and passwords"], "Safe in practice")
+        self.assertEqual(html.count('data-open="'), len(rows) + 1)  # every row, plus the evidence link, opens the evidence
+
+    def test_evidence_is_an_overlay_not_part_of_the_first_screen(self):
+        html = (self.build(ROWS, STATUS, hw=HW) / "index.html").read_text()
+        self.assertEqual(html.count('id="evidence"'), 1)
+        self.assertLess(html.index('class="cd"'), html.index('id="evidence"'))  # answer first, evidence after
+        self.assertIn("data-close", html)
+        self.assertIn('role="dialog"', html)
+        css = (ROOT / "web" / "css" / "pages" / "index.css").read_text()
+        self.assertIn(".js .evidence{display:none;position:fixed", css)  # hidden until opened when scripts run
+        self.assertIn(".evidence{margin-top", css)  # but plain and readable without them
+
+    def test_page_is_short_by_construction(self):
+        html = (self.build(ROWS, STATUS, hw=HW) / "index.html").read_text()
+        self.assertLessEqual(len(self.countdown(html)), 6)
+        self.assertNotIn("How to read this", html)
+        self.assertNotIn("<table", html)
+        self.assertEqual(html.count("<h1"), 1)
 
     def test_hostile_text_is_escaped_and_dashes_removed(self):
         bad = dict(ROWS[2], title='<img src=x onerror=alert(1)> "t" \u2014 x', quote="<script>alert(1)</script> fast \u2014 but")

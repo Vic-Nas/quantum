@@ -9,7 +9,7 @@ from pathlib import Path
 
 from . import cardimg, cards, chart
 from .breakdate import METRICS, earliest_path, requirement, supply_points
-from .present import (ALGORITHMS, CHART_GROUPS, CONSEQUENCE, PROXY_TARGETS, SECURES, SECURES_NOTE, clean, count, date_label, dom_id, duration,
+from .present import (ALGORITHMS, CHART_GROUPS, CONSEQUENCE, COUNTDOWN, PROXY_TARGETS, SECURES, SECURES_NOTE, clean, count, date_label, dom_id, duration,
                       paper_id, plain_reason, short_count, strip_dashes, year_frac)
 
 WEB = Path("web")
@@ -119,6 +119,49 @@ def proof(r, selected, line=None):
             f'<a class="read" href="{e(r["url"])}">{read}</a></div>{side}</article>')
 
 
+def countdown_rows(lines):
+    """Plain-language rows for the front page, from the chart lines: earliest announced year per thing people care about."""
+    by = {ln["target"]: ln for ln in lines}
+    out = []
+    for title, what, targets in COUNTDOWN:
+        mine = [by[t] for t in targets if t in by]
+        if not mine:
+            continue
+        dated = [ln for ln in mine if ln["practical"] and ln["year"]]
+        proxy = any(ln["target"] in PROXY_TARGETS for ln in dated)
+        out.append({"title": title, "what": what, "id": mine[0]["id"], "year": min((ln["year"] for ln in dated), default=None),
+                    "safe": not any(ln["practical"] for ln in mine), "proxy": proxy,
+                    "waiting": any(ln["practical"] for ln in mine) and not dated})
+    return out
+
+
+def countdown_html(crows, today):
+    """The front-page chart: one bar per row from today to the earliest announced year, on a shared year axis."""
+    years = [r["year"] for r in crows if r["year"]]
+    if not years:
+        return ""
+    x0, x1 = today, max(years) + 1.0  # a bar ends at the END of its year: announced 'by 2028' is never earlier than that
+    pct = lambda x: 100 * (x - x0) / (x1 - x0)
+    ticks = "".join(f'<span class="yr" style="left:{pct(y + 0.5):.2f}%">{y}</span>' for y in range(int(x0), int(x1)) if y + 0.5 > x0)
+    grid = "".join(f'<i class="gl" style="left:{pct(y):.2f}%"></i>' for y in range(int(x0) + 1, int(x1) + 1) if x0 < y < x1)
+    rows = []
+    for n, r in enumerate(crows):
+        if r["safe"]:
+            track = '<span class="safe">Safe in practice</span>'
+        elif r["year"]:
+            end = pct(r["year"] + 1.0)
+            track = (f'<span class="bar" style="width:{end:.2f}%"><b>{r["year"]}{" or later" if r["proxy"] else ""}</b></span>')
+        else:
+            track = '<span class="safe">No announced machine is big enough yet</span>'
+        rows.append(f'<button class="row{" first" if n == 0 else ""}" data-open="{e(r["id"])}" type="button">'
+                    f'<span class="who"><strong>{e(r["title"])}</strong><small>{e(r["what"])}</small></span>'
+                    f'<span class="track">{grid}{track}</span></button>')
+    return (f'<section class="cd" aria-label="When it could break"><div class="axis"><span class="who"></span>'
+            f'<span class="track">{ticks}</span></div>{"".join(rows)}'
+            '<p class="foot">Each bar runs from today to the earliest year a vendor has announced a machine big enough. '
+            'Plans, not delivered machines. <button class="more" type="button" data-open="">See the evidence</button></p></section>')
+
+
 def radar_rows(path):
     """Papers whose latest outcome is Tier B (found, not confirmed). One line per paper; never affects the charts."""
     latest = {}
@@ -174,21 +217,22 @@ def build(out="site", data="data"):
     first = lines[0]["id"] if lines else None
     proofs = "".join(proof(ln["row"], ln["id"] == first, ln) for ln in lines)
     proofs += "".join(proof(p["row"], False) for p in phys + logi)
-    answer = ""
-    dated = sorted((ln for ln in lines if ln["practical"] and ln["year"]), key=lambda ln: (ln["target"] in PROXY_TARGETS, ln["year"], ln["name"]))
-    if dated:
-        chips = "".join(f'<span class="chip"><strong>{ln["year"]}{" or later" if ln["target"] in PROXY_TARGETS else ""}</strong> {e(ln["name"])}</span>' for ln in dated)
-        answer = f'<p class="answer"><span class="al">Earliest announced path to a break</span>{chips}</p>'
-    chart_html = ""
+    cd = countdown_html(countdown_rows(lines), today)
+    evidence = ""
     if lines:
-        chart_html = (f'<section class="chartwrap" aria-label="Chart"><div class="tl-wide">{chart.overview_svg(lines, phys, logi, 1100, 460, alt, today)}</div>'
-                      f'<div class="tl-narrow">{chart.overview_svg(narrow_lines, phys, logi, 380, 440, alt, today, narrow=True)}</div>'
-                      '<p class="legend"><span class="li"><span class="k line"></span>Machines vendors announced: physical qubits</span>'
-                      '<span class="li"><span class="k line dashed"></span>logical qubits</span>'
-                      '<span class="li"><span class="k need"></span>Size an attack needs (solid: physical, dashed: logical)</span>'
-                      '<span class="li"><span class="k ring"></span>Where a machine passes it</span></p></section>'
-                      f'<section class="proofs" aria-live="polite">{proofs}</section>')
-    body = chart_html or '<p class="empty">No verified estimates yet. The first update has not stored any.</p>'
+        evidence = ('<div class="evidence" id="evidence" role="dialog" aria-modal="true" aria-label="The evidence"><div class="sheet">'
+                    '<div class="sheethead"><h2>The evidence</h2><button class="x" type="button" data-close aria-label="Close">&times;</button></div>'
+                    '<p class="dim sub">Each dark line is the machine size an attack needs. The orange staircase is what vendors say they will build. '
+                    'Where it passes a line is the earliest announced path. Click any line or dot.</p>'
+                    f'<section class="chartwrap" aria-label="Chart"><div class="tl-wide">{chart.overview_svg(lines, phys, logi, 1060, 440, alt, today)}</div>'
+                    f'<div class="tl-narrow">{chart.overview_svg(narrow_lines, phys, logi, 380, 440, alt, today, narrow=True)}</div>'
+                    '<p class="legend"><span class="li"><span class="k line"></span>Machines vendors announced: physical qubits</span>'
+                    '<span class="li"><span class="k line dashed"></span>logical qubits</span>'
+                    '<span class="li"><span class="k need"></span>Size an attack needs (solid: physical, dashed: logical)</span>'
+                    '<span class="li"><span class="k ring"></span>Where a machine passes it</span></p></section>'
+                    f'<section class="proofs" aria-live="polite">{proofs}</section></div></div>')
+    body = (cd + evidence) if lines else '<p class="empty">No verified estimates yet. The first update has not stored any.</p>'
+    answer = ""
     queued = json.loads((data / "queue.json").read_text()) if (data / "queue.json").exists() else {}
     queued_ids = {k.rsplit("@", 1)[0] for k in queued}
     radar = [r for r in radar_rows(data / "candidates") if r.get("id") not in queued_ids]
@@ -209,10 +253,8 @@ def build(out="site", data="data"):
 </head><body>
 <header class="bar"><span class="brand"><img src="assets/favicon.svg" alt="" width="22" height="22">Quantum threat tracker</span><span class="upd">Updated {e(updated)}</span></header>
 <main class="page">
-<section class="hero"><h1>How close is quantum computing to breaking today's encryption?</h1>
-<p class="lede">Each dark line is the machine size an attack needs. The orange staircase is what vendors say they will build.
-Where the staircase passes a line is the earliest announced path to that break: plans, not delivered machines.
-Click any line or dot to read the source.</p>{answer}</section>
+<section class="hero"><h1>When could quantum computers break the encryption you use?</h1>
+<p class="lede">Based on how big a quantum computer published attacks need, and the machines vendors say they will build.</p></section>
 {alert}{body}
 
 {radar_html}
