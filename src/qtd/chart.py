@@ -11,13 +11,14 @@ def _e(x):
     return html.escape(str(x), quote=True)
 
 
-def timeline_svg(points, width, height, label):
+def timeline_svg(points, width, height, label, today=None):
     """One SVG sized to its box so text stays 1:1. Y is log scale (qubits), X is paper date."""
     if not points:
         return ""
     l, r, t, b = 62, 16, 16, 30
     xs = [p["x"] for p in points]
-    x0, x1 = math.floor(min(xs) - 0.4), math.ceil(max(xs) + 0.3)
+    now = max(xs) if today is None else max(today, max(xs))
+    x0, x1 = math.floor(min(xs) - 0.4), math.ceil(now + 1.0)  # about a year of empty future on the right
     lo, hi = 3, 8
     ys = [math.log10(p["y"]) for p in points]
     lo, hi = min(lo, math.floor(min(ys))), max(hi, math.ceil(max(ys)))
@@ -29,6 +30,9 @@ def timeline_svg(points, width, height, label):
         return t + (hi - math.log10(y)) / (hi - lo) * (height - t - b)
 
     out = [f'<svg class="tl" viewBox="0 0 {width} {height}" width="{width}" height="{height}" role="img" aria-label="{_e(label)}">']
+    out.append(f'<rect class="future" x="{px(now):.1f}" y="{t}" width="{width - r - px(now):.1f}" height="{height - t - b}"/>'
+               f'<line class="today" x1="{px(now):.1f}" x2="{px(now):.1f}" y1="{t}" y2="{height - b}"/>'
+               f'<text class="ax" x="{px(now):.1f}" y="{t - 4}" text-anchor="middle">Today</text>')
     for tick in [10 ** k for k in range(lo, hi + 1)]:
         y = py(tick)
         out.append(f'<line class="grid" x1="{l}" x2="{width - r}" y1="{y:.1f}" y2="{y:.1f}"/>'
@@ -44,7 +48,7 @@ def timeline_svg(points, width, height, label):
                 stair.append(f"H{px(p['x']):.1f}")
             stair.append(("M" if best is None else "V") + (f"{px(p['x']):.1f} {py(p['y']):.1f}" if best is None else f"{py(p['y']):.1f}"))
             best = p["y"]
-    out.append(f'<path class="stair" d="{"".join(stair)}H{px(x1 - 0.15):.1f}" fill="none"/>')
+    out.append(f'<path class="stair" d="{"".join(stair)}H{px(now):.1f}" fill="none"/>')  # ends today, never into the future
     for p in points:
         cx, cy = px(p["x"]), py(p["y"])
         rid = dom_id(p["row"]["id"])

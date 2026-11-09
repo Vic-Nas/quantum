@@ -9,7 +9,7 @@ from pathlib import Path
 
 from . import cardimg, cards, chart
 from .present import (SECURES, SECURES_NOTE, TARGET_NAMES, TARGET_ORDER, clean, count, date_label, dom_id, duration, headline,
-                      label, paper_id, plain_reason, series, short_count)
+                      label, paper_id, plain_reason, series, short_count, year_frac)
 
 WEB = Path("web")
 DEFAULT_URL = "https://vic-nas.github.io/quantum/"
@@ -62,7 +62,7 @@ def proof(r, selected):
             f'<a class="read" href="{e(r["url"])}">Read the paper</a></article>')
 
 
-def target_section(rows, target):
+def target_section(rows, target, today=None):
     pts = series(rows, target)
     name, _ = label(target)
     mine = [r for r in rows if r.get("target") == target]
@@ -74,11 +74,12 @@ def target_section(rows, target):
     alt = f"Qubits needed to break {name}, by paper date. Lower is closer to breaking it."
     charts = ""
     if pts:
-        charts = (f'<div class="chart"><div class="tl-wide">{chart.timeline_svg(pts, 640, 330, alt)}</div>'
-                  f'<div class="tl-narrow">{chart.timeline_svg(pts, 340, 300, alt)}</div>'
+        charts = (f'<div class="chart"><div class="tl-wide">{chart.timeline_svg(pts, 640, 330, alt, today)}</div>'
+                  f'<div class="tl-narrow">{chart.timeline_svg(pts, 340, 300, alt, today)}</div>'
                   '<p class="legend"><span class="li"><span class="k rec"></span>Set a new record</span>'
                   '<span class="li"><span class="k"></span>Other estimates</span>'
-                  '<span class="li"><span class="k line"></span>Best known so far</span></p></div>')
+                  '<span class="li"><span class="k line"></span>Best known so far</span>'
+                  '<span class="li"><span class="k fut"></span>Future: when a machine this size could exist is not tracked yet</span></p></div>')
     else:
         charts = '<div class="chart"><p class="dim">No estimate here states physical qubits, so there is nothing to chart yet.</p></div>'
     also = [r for r in ordered if r.get("physical_qubits") is None]
@@ -92,7 +93,7 @@ def target_section(rows, target):
                     f'<p class="dim">{e(SECURES_NOTE)}</p></div>') if secures else ""
     pname, tech = TARGET_NAMES.get(target, (name, name))
     return (f'<section class="target" id="t-{e(target)}" role="tabpanel" aria-labelledby="tab-{e(target)}">'
-            f'<header><h2>{e(pname)}</h2><p>Secured by {e(tech)}. Each dot is a published estimate of the quantum computer size needed to break it.</p></header>'
+            f'<header><h2>{e(pname)}</h2><p>Secured by {e(tech)}. Each dot is an estimate, from one paper, of the quantum computer size needed to break it. Dates are when the paper was published, not when anything could be broken.</p></header>'
             f'<div class="viz">{charts}<aside class="proofs" aria-live="polite">{proofs}</aside></div>{also_html}{secures_html}</section>')
 
 
@@ -173,7 +174,7 @@ def build(out="site", data="data"):
                           for r in radar) + "</ul>") if radar else ""
         radar_html = (f'<details class="radar"><summary>Found but not confirmed ({len(radar)}'
                       f'{f", {len(queued)} waiting" if queued else ""})</summary>{waiting}{listed}</details>')
-    body = "".join(target_section(rows, t) for t in present) if rows else (
+    body = "".join(target_section(rows, t, year_frac(as_of)) for t in present) if rows else (
         '<p class="empty">No verified estimates yet. The first update has not stored any.</p>')
     updated = date_label(as_of) or "not yet"
     page = f"""<!doctype html>
@@ -185,12 +186,14 @@ def build(out="site", data="data"):
 <main class="page">
 <section class="hero"><h1>How close is quantum computing to breaking today's encryption?</h1>
 <p class="lede">Today's security holds because nobody can build a big enough quantum computer. Researchers keep publishing smaller
-designs. Pick what you care about, then click any dot to read the paper's own words.</p>
+designs. Each dot is one paper's estimate of the machine size needed, and lower means easier to attack. This does not say <em>when</em>
+such a machine will exist; that part is not tracked yet. Pick what you care about, then click any dot to read the paper's own words.</p>
 <div class="hls" role="tablist" aria-label="What to look at">{tiles(rows, present)}</div></section>
 {alert}{body}
 <section class="notes"><h2>How to read this</h2>
 <dl><div><dt>Qubit</dt><dd>The basic unit of a quantum computer, like a bit in an ordinary one. Breaking encryption takes many of them working together.</dd></div>
 <div><dt>Physical vs. error-corrected</dt><dd>A physical qubit is one real piece of hardware. Error-corrected (logical) qubits are built from many physical ones, so they are not comparable with the charted numbers.</dd></div>
+<div><dt>What is covered</dt><dd>So far: RSA-2048, and 256-bit elliptic curves (Bitcoin and Ethereum's secp256k1, P-256, Curve25519 and Ed25519, treated as one group). Also broken by a large enough quantum computer but not charted yet: other RSA sizes and curves, finite-field Diffie-Hellman, and the pairing curves BLS12-381 and BN254 (Ethereum validators, zero-knowledge proofs). Ciphers like AES and hashes like SHA-256 are only weakened, not broken.</dd></div>
 <div><dt>Not a countdown</dt><dd>This shows how big a machine would have to be. It does not yet track how big machines are today, so it cannot say when. Each paper assumes its own kind of hardware, so look at the trend and not at exact comparisons.</dd></div></dl></section>
 {radar_html}
 <footer><span>Figures are sentences quoted from each paper and checked against its text. The descriptions of what each algorithm protects are written by hand.</span><a href="data/attacks.json">Raw data</a></footer>

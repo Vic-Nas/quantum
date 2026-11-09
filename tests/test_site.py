@@ -100,6 +100,15 @@ class Chart(unittest.TestCase):
         self.assertIn('href="#p-arxiv-2505-15917-0"', svg)
         self.assertNotIn("nan", svg.lower())
         self.assertEqual(chart.timeline_svg([], 640, 330, "x"), "")
+        today = present.year_frac("2026-11-09")
+        svg = chart.timeline_svg(pts, 640, 330, "label", today)
+        self.assertIn('class="future"', svg)  # the empty future is drawn, not extrapolated into
+        self.assertIn(">Today<", svg)
+        import re
+        stair = re.search(r'class="stair" d="([^"]+)"', svg).group(1)
+        last_x = float(re.findall(r"H([\d.]+)", stair)[-1])
+        today_x = float(re.search(r'class="today" x1="([\d.]+)"', svg).group(1))
+        self.assertAlmostEqual(last_x, today_x, places=0)  # the best-known line stops at today
         one = chart.timeline_svg(present.series(ROWS, "ecdlp-256"), 340, 300, "x")  # single point must not crash
         self.assertIn("<svg", one)
 
@@ -174,6 +183,11 @@ class Build(unittest.TestCase):
         self.assertEqual(html.count('role="tab"'), 2)
         self.assertEqual(html.count('role="tabpanel"'), 2)
         self.assertIn("What this protects", html)
+        self.assertIn("not when anything could be broken", html)
+        self.assertIn("not tracked yet", html)
+        self.assertIn("What is covered", html)
+        self.assertIn("BLS12-381", html)
+        self.assertEqual(html.count('class="future"'), 4)  # wide and narrow chart for each of the two targets
         self.assertIn('rel="icon"', html)
         self.assertTrue((out / "assets" / "favicon.svg").exists())
         self.assertFalse(list((out / "assets" / "fonts").glob("*.ttf")))  # build-only fonts are not served
