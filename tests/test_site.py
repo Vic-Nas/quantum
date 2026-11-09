@@ -322,14 +322,16 @@ class Build(unittest.TestCase):
         self.assertNotIn("<script>alert", threat)
         self.assertIn("fast; but", threat)
 
-    def test_served_data_has_no_em_dash_but_input_is_untouched(self):
+    def test_em_dashes_stripped_and_no_data_dir_served(self):
         em = "—"
-        hw = [dict(HW[0], quote=f"We will deliver {em} by 2027")]
-        out = self.build(ROWS, STATUS, hw=hw)
-        served = (out / "data" / "hardware.json").read_text()
-        self.assertNotIn(em, served)
-        self.assertIn("We will deliver; by 2027", served)
-        self.assertEqual(hw[0]["quote"], f"We will deliver {em} by 2027")
+        rows = [dict(ROWS[0], quote=f"fast{em} but expensive")]
+        out = self.build(rows, STATUS, hw=HW)
+        threat_slug = list((out / "threats").iterdir())[0].name
+        html = (out / "threats" / threat_slug / "index.html").read_text()
+        self.assertNotIn(em, html)
+        self.assertIn("fast; but expensive", html)
+        self.assertEqual(rows[0]["quote"], f"fast{em} but expensive")
+        self.assertFalse((out / "data").exists())
 
     def test_a_queued_paper_is_described_as_waiting_not_unconfirmed(self):
         cands = [{"id": "arxiv:9.9", "tier": "B", "url": "https://arxiv.org/abs/9.9", "title": "queued paper", "reason": "second opinion"}]

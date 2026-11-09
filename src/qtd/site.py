@@ -108,7 +108,6 @@ def shell(body, card, assets, css_rels, depth, updated, nav_active=""):
 <span class="upd">Updated {e(updated)}</span>
 </header>
 <main class="page">{body}</main>
-<footer><span>Every figure is quoted from a paper or vendor page and checked against its text. The lists of what is affected are written by hand.</span><a href="{root}data/attacks.json">Raw data</a></footer>
 </body></html>"""
 
 
@@ -471,10 +470,10 @@ def hardware_body(hw_rows):
 def chart_body(lines, narrow_lines, phys, logi, today, alt):
     if not lines:
         return '<p class="empty">No data for the chart yet.</p>'
-    return (f'<section class="hero"><h1>Technical overview</h1>'
+    return (f'<section class="hero compact"><h1>Technical overview</h1>'
             f'<p class="lede">{e(alt)}</p></section>'
-            '<div class="chartwrap">'
-            f'<div class="tl-wide">{chart.overview_svg(lines, phys, logi, 1060, 440, alt, today)}</div>'
+            '<div class="chartwrap full">'
+            f'<div class="tl-wide">{chart.overview_svg(lines, phys, logi, 1060, 520, alt, today)}</div>'
             f'<div class="tl-narrow">{chart.overview_svg(narrow_lines, phys, logi, 380, 440, alt, today, narrow=True)}</div>'
             '<p class="legend"><span class="li"><span class="k line"></span>Machines vendors announced: physical qubits</span>'
             '<span class="li"><span class="k line dashed"></span>logical qubits</span>'
@@ -490,7 +489,6 @@ def chart_body(lines, narrow_lines, phys, logi, today, alt):
 def build(out="site", data="data"):
     out, data = Path(out), Path(data)
     shutil.rmtree(out, ignore_errors=True)
-    (out / "data").mkdir(parents=True)
     shutil.copytree(WEB / "fonts", out / "assets" / "fonts", ignore=shutil.ignore_patterns("*.ttf"))
     shutil.copy(WEB / "favicon.svg", out / "assets" / "favicon.svg")
     for sub in ("css/pages",):
@@ -502,16 +500,17 @@ def build(out="site", data="data"):
         (out / "assets" / rel).write_bytes(body)
         assets.add(rel, body)
 
-    for f in ("attacks.json", "hardware.json", "status.json", "queue.json"):
-        src = data / f
+    def _load(name):
+        src = data / name
         raw = json.loads(src.read_text()) if src.exists() else []
         if isinstance(raw, list):
             raw = [{k: (strip_dashes(v) if k in ("quote", "title") else v) for k, v in r.items()} if isinstance(r, dict) else r for r in raw]
-        (out / "data" / f).write_text(json.dumps(raw, indent=1))
+        return raw
+
     (out / ".nojekyll").write_text("")
 
-    rows = json.loads((out / "data" / "attacks.json").read_text())
-    hw_rows = json.loads((out / "data" / "hardware.json").read_text() or "[]")
+    rows = _load("attacks.json")
+    hw_rows = _load("hardware.json")
     st = json.loads((data / "status.json").read_text()) if (data / "status.json").exists() else {}
     as_of = (st.get("run_at") or "")[:10]
     updated = date_label(as_of) or "not yet"

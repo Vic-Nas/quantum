@@ -59,6 +59,8 @@ h4{margin:0 0 5px;font-size:12px;font-weight:650;color:var(--ink-dim);text-trans
 
 /* Chart page */
 .chartwrap{margin-top:10px;background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 10px 8px}
+.chartwrap.full{margin-top:6px;padding:8px 10px 4px}
+.chartwrap.full .tl{height:calc(100vh - 200px);min-height:340px}
 .tl-narrow{display:none}
 .tl{display:block;width:100%;height:auto;overflow:visible}
 .tl .grid{stroke:rgb(var(--ink-rgb)/.07);stroke-width:1}
