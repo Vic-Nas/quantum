@@ -1,7 +1,7 @@
 import argparse
 import json
 
-from . import evaluate, pipeline
+from . import evaluate, pipeline, pq_releases
 
 ap = argparse.ArgumentParser(prog="qtd")
 sub = ap.add_subparsers(dest="cmd", required=True)
@@ -12,6 +12,7 @@ r.add_argument("--limit", type=int)
 sub.add_parser("hardware", help="fetch vendor roadmap pages and extract hardware claims")
 sub.add_parser("retry", help="self-healing pass: queued papers, vendor pages, and a full pass if the last run failed")
 sub.add_parser("seed", help="one-time baseline from the gold papers")
+sub.add_parser("pq", help="check GitHub releases of tracked projects for post-quantum keywords")
 e = sub.add_parser("eval", help="score regex and models against the gold set")
 e.add_argument("--no-llm", action="store_true")
 a = ap.parse_args()
@@ -26,5 +27,7 @@ elif a.cmd == "retry":
     print(json.dumps(pipeline.retry(), indent=1))
 elif a.cmd == "seed":
     print(json.dumps(pipeline.seed(), indent=1))
+elif a.cmd == "pq":
+    print(json.dumps(pq_releases.run(), indent=1))
 else:
     print(json.dumps(evaluate.run(use_llm=not a.no_llm), indent=1))

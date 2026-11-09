@@ -327,13 +327,17 @@ def vendor_timeline_html(actor, entries):
 # Page bodies
 # ---------------------------------------------------------------------------
 
-def services_html(crows):
+def services_html(crows, pq_overrides=None):
+    pq_overrides = pq_overrides or {}
     slug_year = {}
     for crow in crows:
         yr = crow["year"]
         slug_year[crow["slug"]] = (yr, crow["safe"], crow.get("proxy"))
     items = []
     for name, note, slug, pq, detail in SERVICES:
+        override = pq_overrides.get(name, {})
+        if override.get("pq_status"):
+            pq = override["pq_status"]
         yr, safe, proxy = slug_year.get(slug, (None, False, False))
         if safe:
             status_cls, status_txt = "safe", "Safe"
@@ -359,9 +363,9 @@ def services_html(crows):
             f'<div class="svc-grid">{"".join(items)}</div></section>')
 
 
-def home_body(crows, today, alert):
+def home_body(crows, today, alert, pq_overrides=None):
     cd = countdown_html(crows, today)
-    svcs = services_html(crows) if crows else ""
+    svcs = services_html(crows, pq_overrides) if crows else ""
     grid = threat_grid_html(crows) if crows else ""
     empty = '<p class="empty">No verified estimates yet. The first update has not stored any.</p>' if not crows else ""
     return (f'<section class="hero"><h1>When could quantum computers break the encryption you use?</h1>'
@@ -549,6 +553,7 @@ def build(out="site", data="data"):
 
     rows = _load("attacks.json")
     hw_rows = _load("hardware.json")
+    pq_overrides = json.loads((data / "pq_status.json").read_text()) if (data / "pq_status.json").exists() else {}
     st = json.loads((data / "status.json").read_text()) if (data / "status.json").exists() else {}
     as_of = (st.get("run_at") or "")[:10]
     updated = date_label(as_of) or "not yet"
@@ -575,7 +580,7 @@ def build(out="site", data="data"):
     crows = countdown_rows(lines)
 
     # --- Home ---
-    body = home_body(crows, today, alert)
+    body = home_body(crows, today, alert, pq_overrides)
     (out / "index.html").write_text(
         shell(body, home_card, assets, ("css/base.css", "css/pages/index.css"), 0, updated))
 

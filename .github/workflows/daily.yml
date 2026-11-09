@@ -68,6 +68,9 @@ jobs:
         run: |
           python -m qtd ${{ steps.mode.outputs.cmd }} | tee out.json
           { echo '### qtd output'; echo '```json'; cat out.json; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - name: Check GitHub releases for post-quantum updates
+        if: steps.mode.outputs.cmd != 'none'
+        run: python -m qtd pq | tee pq_out.json
       - name: Refresh the README title link from QTD_SITE_URL
         run: python -m qtd.readme
       - name: Commit changes
