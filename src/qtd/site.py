@@ -420,7 +420,7 @@ def threat_body(crow, rows, hw_rows, depth, facts=None):
     if figs:
         lis = "".join(f'<li><strong>{e(f["answer"])}</strong> {e(f.get("label", ""))} '
                       f'<a href="{e(f["url"])}" title="{e(clean(f.get("quote", ""), 300))}">Source</a> '
-                      f'<span class="dim">checked {e(date_label(f["checked"]))}</span></li>' for f in figs)
+                      f'{f"<span class=dim>checked {e(date_label(f["checked"]))}</span>" if f.get("quote") else ""}</li>' for f in figs)
         exposed = f'<div><h4>How much is exposed</h4><ul>{lis}</ul></div>'
     context = (f'<aside class="t-context">'
                f'<div><h4>Where you meet it</h4><ul>{algos}</ul></div>'

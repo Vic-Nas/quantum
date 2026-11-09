@@ -14,6 +14,6 @@
   "ask": "How many bitcoin are held in pay-to-public-key (P2PK) outputs?", "url": "https://chaincode.com/bitcoin-post-quantum.pdf"},
  {"id": "btc-dormant", "kind": "figure", "group": "ecdlp-256", "label": "dormant and unlikely to ever move to safe addresses",
   "ask": "How many bitcoin are dormant or lost and so cannot be migrated to quantum-safe addresses?", "url": "https://arxiv.org/pdf/2606.14484"},
- {"id": "eth-exposed", "kind": "figure", "group": "ecdlp-256", "label": "of all ETH exposed at rest",
+ {"id": "eth-exposed", "kind": "figure", "group": "ecdlp-256", "label": "of all ETH has an exposed key at rest, by one estimate",
   "ask": "What share or amount of ETH has an exposed public key at rest?", "url": "https://arxiv.org/pdf/2606.14484"}
 ]
