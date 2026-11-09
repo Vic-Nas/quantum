@@ -23,6 +23,13 @@ ROWS = [
 ]
 
 
+try:
+    import PIL  # noqa: F401
+    HAVE_PIL = True
+except ImportError:
+    HAVE_PIL = False
+
+
 class Tags(HTMLParser):
     def __init__(self):
         super().__init__()
@@ -152,13 +159,14 @@ class Build(unittest.TestCase):
         self.assertEqual(t.meta["og:title"], cards.TITLE)
         self.assertIn("20 million", t.meta["og:description"])
         self.assertTrue(t.meta["og:url"].startswith("https://"))
-        self.assertEqual(t.meta["twitter:card"], "summary_large_image")
-        self.assertTrue(t.meta["og:image"].startswith("https://") and t.meta["og:image"].endswith("/assets/card.png"))
-        self.assertEqual((t.meta["og:image:width"], t.meta["og:image:height"]), ("1200", "630"))
-        self.assertTrue(t.meta["og:image:alt"])
-        png = (out / "assets" / "card.png").read_bytes()
-        self.assertEqual(png[:8], b"\x89PNG\r\n\x1a\n")
-        self.assertEqual(int.from_bytes(png[16:20], "big"), 1200)
+        if HAVE_PIL:
+            self.assertEqual(t.meta["twitter:card"], "summary_large_image")
+            self.assertTrue(t.meta["og:image"].startswith("https://") and t.meta["og:image"].endswith("/assets/card.png"))
+            self.assertEqual((t.meta["og:image:width"], t.meta["og:image:height"]), ("1200", "630"))
+            self.assertTrue(t.meta["og:image:alt"])
+            png = (out / "assets" / "card.png").read_bytes()
+            self.assertEqual(png[:8], b"\x89PNG\r\n\x1a\n")
+            self.assertEqual(int.from_bytes(png[16:20], "big"), 1200)
         self.assertRegex(html, r"assets/css/base\.css\?v=[0-9a-f]{10}")
         self.assertEqual(html.count('class="dot'), 8)  # 3 + 3 (wide and narrow) + 1 + 1
         self.assertIn('class="proof is-sel"', html)
@@ -174,6 +182,16 @@ class Build(unittest.TestCase):
         self.assertTrue((out / "assets" / "fonts" / "Geist-Variable.woff2").exists())
         self.assertTrue((out / ".nojekyll").exists())
         self.assertNotIn("<style", html)
+
+    def test_without_pillow_the_card_falls_back_to_text_only(self):
+        from unittest import mock
+        with mock.patch.object(site.cardimg, "render", return_value=False):
+            out = self.build(ROWS, {"run_at": "2026-11-09T00:20:03+00:00"})
+        t = Tags()
+        t.feed((out / "index.html").read_text())
+        self.assertEqual(t.meta["twitter:card"], "summary")
+        self.assertNotIn("og:image", t.meta)
+        self.assertTrue(t.meta["og:url"].startswith("https://"))
 
     def test_hostile_text_is_escaped(self):
         bad = dict(ROWS[0], title='<img src=x onerror=alert(1)> "t" \u2014 x', quote="<script>alert(1)</script> fast \u2014 but")
