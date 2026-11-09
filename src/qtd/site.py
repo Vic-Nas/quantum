@@ -223,7 +223,7 @@ def threat_grid_html(crows):
             f'<a class="threat-card" href="threats/{crow["slug"]}/">'
             f'{badge}<h3>{e(crow["title"])}</h3>'
             f'<p>{e(crow["what"])}</p>'
-            f'<span class="tc-more">View details →</span></a>')
+            f'<span class="tc-more">View details</span></a>')
     return f'<div class="card-grid">{"".join(items)}</div>'
 
 
@@ -351,9 +351,24 @@ def threat_body(crow, rows, hw_rows, depth):
     else:
         badge = ""
 
-    hero = (f'<a class="back" href="{root}">← All threats</a>'
+    hero = (f'<a class="back" href="{root}">All threats</a>'
             f'<div class="t-hero"><div><h1>{e(crow["title"])}</h1>'
             f'<p class="t-what">{e(crow["what"])}</p></div>{badge}</div>')
+
+    # Context sidebar: where you meet it + if it breaks
+    algos = "".join(f'<li><strong>{e(a[0])}</strong> {e(a[1])}</li>'
+                    for t in all_targets for a in ALGORITHMS if a[3] == t)
+    effects = ""
+    if not crow["safe"]:
+        eff_data = SECURES.get(primary_target) or [("", CONSEQUENCE.get(primary_target, ""))]
+        eff = "".join(f'<li>{f"<strong>{e(t)}</strong> " if t else ""}{e(x)}</li>'
+                      for t, x in eff_data if x)
+        if eff:
+            effects = f'<div><h4>If it breaks</h4><ul>{eff}</ul></div>'
+    context = (f'<aside class="t-context">'
+               f'<div><h4>Where you meet it</h4><ul>{algos}</ul></div>'
+               f'{effects}'
+               f'<p class="d-note">{e(SECURES_NOTE)}</p></aside>')
 
     summary = ""
     if not crow["safe"]:
@@ -381,6 +396,8 @@ def threat_body(crow, rows, hw_rows, depth):
         parts = [CONSEQUENCE.get(ln["target"], "") for ln in crow["lines"]]
         summary = "".join(f'<p class="t-summary">{e(x)}</p>' for x in parts if x)
 
+    top = f'<div class="t-top"><div class="t-main">{summary}</div>{context}</div>'
+
     prog = ""
     for t in all_targets:
         svg = progress_svg(t, rows)
@@ -390,29 +407,6 @@ def threat_body(crow, rows, hw_rows, depth):
                     f'<p class="dim">Physical qubits needed to break {e(tl)}, log scale. '
                     f'Filled dots set a new record low.</p>{svg}</section>')
             break
-
-    target_papers = sorted([r for r in rows if r.get("target") in all_targets],
-                           key=lambda r: r.get("published", ""), reverse=True)
-    papers = ""
-    if target_papers:
-        pcards = "".join(paper_card_html(r) for r in target_papers)
-        n = len(target_papers)
-        papers = (f'<section class="t-section"><h2>Published estimates ({n})</h2>'
-                  f'<div class="card-grid compact">{pcards}</div></section>')
-
-    algos = "".join(f'<li><strong>{e(a[0])}</strong> {e(a[1])}</li>'
-                    for t in all_targets for a in ALGORITHMS if a[3] == t)
-    effects = ""
-    if not crow["safe"]:
-        eff_data = SECURES.get(primary_target) or [("", CONSEQUENCE.get(primary_target, ""))]
-        eff = "".join(f'<li>{f"<strong>{e(t)}</strong> " if t else ""}{e(x)}</li>'
-                      for t, x in eff_data if x)
-        if eff:
-            effects = f'<div><h4>If it breaks</h4><ul>{eff}</ul></div>'
-    impact = (f'<section class="t-section"><div class="d-grid">'
-              f'<div><h4>Where you meet it</h4><ul>{algos}</ul></div>'
-              f'{effects}</div></section>')
-    note = f'<p class="d-note">{e(SECURES_NOTE)}</p>'
 
     hw_section = ""
     if not crow["safe"]:
@@ -434,7 +428,16 @@ def threat_body(crow, rows, hw_rows, depth):
                           f'<p class="dim">Vendor announcements with enough qubits for this attack.</p>'
                           f'<div class="vendor-grid">{hw_cards}</div></section>')
 
-    return f'{hero}{summary}{prog}{papers}{impact}{note}{hw_section}'
+    target_papers = sorted([r for r in rows if r.get("target") in all_targets],
+                           key=lambda r: r.get("published", ""), reverse=True)
+    papers = ""
+    if target_papers:
+        pcards = "".join(paper_card_html(r) for r in target_papers)
+        n = len(target_papers)
+        papers = (f'<section class="t-section"><h2>Published estimates ({n})</h2>'
+                  f'<div class="card-grid compact">{pcards}</div></section>')
+
+    return f'{hero}{top}{prog}{hw_section}{papers}'
 
 
 def research_body(rows):
