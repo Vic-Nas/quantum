@@ -235,16 +235,16 @@ class Build(unittest.TestCase):
         self.assertIn("none announced", html)
 
     def test_hostile_text_is_escaped_and_dashes_removed(self):
-        bad = dict(ROWS[2], title='<img src=x onerror=alert(1)> "t" — x', quote="<script>alert(1)</script> fast — but")
+        bad = dict(ROWS[2], title='<img src=x onerror=alert(1)> "t" \u2014 x', quote="<script>alert(1)</script> fast \u2014 but")
         out = self.build([bad] + ROWS[:2], STATUS, hw=HW)
         html = (out / "index.html").read_text()
         self.assertNotIn("<script>alert", html)
         self.assertNotIn("<img src=x", html)
-        self.assertNotIn("—", html)
+        self.assertNotIn("\u2014", html)
         self.assertIn("fast; but", html)
 
     def test_served_data_has_no_em_dash_but_input_is_untouched(self):
-        em = "—"
+        em = "\u2014"
         hw = [dict(HW[0], quote=f"We will deliver {em} by 2027")]
         out = self.build(ROWS, STATUS, hw=hw)
         served = (out / "data" / "hardware.json").read_text()
