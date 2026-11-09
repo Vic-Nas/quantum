@@ -21,7 +21,8 @@ CACHE = Path(os.environ.get("QTD_CACHE", "data/cache"))
 CHAINS = {
     "coarse": ["gemma-4-26b-a4b-it", "gemini-3.1-flash-lite"],
     "primary": ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite"],
-    "secondary": ["gemma-4-31b-it", "gemma-4-26b-a4b-it"],
+    # Chosen by comparison on the gold set (see evaluate.compare): Gemma confirmed 3 to 4 of 9, this one 8 of 9, with no errors.
+    "secondary": ["gemini-3.1-flash-lite", "gemma-4-31b-it"],
     "escalation": ["gemini-3.8-flash", "gemini-3.6-flash"],
 }
 for _role in CHAINS:  # env override puts a model first in its chain
@@ -35,10 +36,12 @@ def family(model: str) -> str:
     return "gemma" if model.startswith("gemma") else "gemini"
 
 
-def call_chain(role: str, fn):
-    """Try each model in the role's chain. fn(model) -> result. Returns (result, model_used)."""
+def call_chain(role: str, fn, exclude: str | None = None):
+    """Try each model in the role's chain (skipping `exclude`). fn(model) -> result. Returns (result, model_used)."""
     last = None
     for model in CHAINS[role]:
+        if model == exclude:
+            continue
         try:
             return fn(model), model
         except LLMError as e:

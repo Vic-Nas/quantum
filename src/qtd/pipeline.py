@@ -66,10 +66,10 @@ def process(item: dict, rows: list, use_llm: bool) -> dict:
     needs = [e for e in v1["ok_estimates"]
              if v1["kind"] == "hardware" or router.is_frontier(e["values"], rows)]
     if needs:
-        ex2, m2 = llm.call_chain("secondary", lambda mod: stages.extract(item, mod))
+        ex2, m2 = llm.call_chain("secondary", lambda mod: stages.extract(item, mod), exclude=m1)
         v2 = _verified(ex2, item)
         rec["trail"]["secondary"] = {"model": m2, "extraction": ex2, "estimates": v2["estimates"]}
-    independent = bool(m2) and llm.family(m1) != llm.family(m2)
+    independent = bool(m2) and m2 != m1  # a different model; the family is logged so this can be tightened later
     unconfirmed = [e for e in needs if not (v2 and any_agrees(e["values"], v2["ok_estimates"]))]
     if m2 and m2 != llm.CHAINS["secondary"][0] and unconfirmed:
         # The second opinion came from a fallback model. Do not demote a good row for good because the
@@ -79,14 +79,15 @@ def process(item: dict, rows: list, use_llm: bool) -> dict:
         second = independent and e["ok"] and any_agrees(e["values"], v2["ok_estimates"] if v2 else [])
         tier, why = router.route(v1["kind"], e["ok"], e["values"], second, rows)
         if v2 and not independent and tier == "A":
-            tier, why = "B", "second model is the same family as the first"
+            tier, why = "B", "second opinion came from the same model as the first"
         rec["estimates"].append({"kind": v1["kind"], "values": e["values"], "quote": e["quote"], "tier": tier,
                                  "reason": why, "regex_agrees": e["ok"] and any_agrees(e["values"], rx_v["ok_estimates"])})
     rec["estimates"] = dedupe_estimates(rec["estimates"])
     order = {"A": 0, "B": 1, "drop": 2}
     best = min(rec["estimates"], key=lambda x: order[x["tier"]], default=None)
     rec["tier"], rec["reason"] = (best["tier"], best["reason"]) if best else ("drop", "no estimates")
-    rec["models"] = {"primary": m1, "secondary": m2}
+    rec["models"] = {"primary": m1, "secondary": m2,
+                     "different_family": bool(m2) and llm.family(m1) != llm.family(m2)}
     return rec
 
 

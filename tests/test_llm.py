@@ -17,6 +17,12 @@ class ParseJson(unittest.TestCase):
             llm.parse_json("no json here")
 
 
+class Exclude(unittest.TestCase):
+    def test_chain_skips_the_excluded_model(self):
+        first = llm.CHAINS["secondary"][0]
+        self.assertEqual(llm.call_chain("secondary", lambda m: m, exclude=first)[1], llm.CHAINS["secondary"][1])
+
+
 class Timeouts(unittest.TestCase):
     def test_read_timeout_is_a_model_failure_not_a_crash(self):
         import os

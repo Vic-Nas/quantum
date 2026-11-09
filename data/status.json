@@ -2,19 +2,19 @@
  "fetched": 9,
  "processed": 9,
  "counts": {
-  "A": 6,
-  "B": 1,
-  "drop": 1,
-  "retry": 1,
+  "A": 7,
+  "B": 0,
+  "drop": 2,
+  "retry": 0,
   "gave_up": 0
  },
  "source_errors": {},
- "auto_applied": 9,
+ "auto_applied": 11,
  "held": 0,
  "gate": {
   "ok": true
  },
- "queue_size": 1,
+ "queue_size": 0,
  "dry": false,
- "run_at": "2026-11-09T02:36:26+00:00"
+ "run_at": "2026-11-09T03:25:37+00:00"
 }

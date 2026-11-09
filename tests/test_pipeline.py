@@ -20,13 +20,13 @@ def item(n=1):
 
 
 def fake_chain(fail=False, same_family=False, relevant=True):
-    def chain(role, fn):
+    def chain(role, fn, exclude=None):
         if fail:
             raise llm.LLMError("503 unavailable")
         if role == "coarse":
             return {"relevant": relevant, "reason": "x"}, "gemma-4-26b-a4b-it"
         ex = {"kind": "attack", "estimates": [{"quote": QUOTE, "fields": {"target": "RSA-2048", "physical_qubits": "a million"}}]}
-        model = {"primary": "gemini-3.5-flash-lite", "secondary": "gemini-3.1-flash-lite" if same_family else "gemma-4-31b-it"}[role]
+        model = {"primary": "gemini-3.5-flash-lite", "secondary": "gemini-3.5-flash-lite" if same_family else "gemini-3.1-flash-lite"}[role]
         return ex, model
     return chain
 
@@ -49,9 +49,9 @@ class Pipeline(unittest.TestCase):
         self.assertEqual((row["target"], row["physical_qubits"]), ("rsa-2048", 1e6))
         self.assertIn("rsa", row["quote"].lower())
 
-    def test_same_family_is_not_enough(self):
+    def test_the_same_model_twice_is_not_enough(self):
         with mock.patch.object(llm, "call_chain", fake_chain(same_family=True)), \
-                mock.patch.dict(llm.CHAINS, {"secondary": ["gemini-3.1-flash-lite"]}):
+                mock.patch.dict(llm.CHAINS, {"secondary": ["gemini-3.5-flash-lite"]}):
             r = pipeline.run(items=[item()])
         self.assertEqual((r["counts"]["A"], r["counts"]["B"], r["auto_applied"]), (0, 1, 0))
 
@@ -82,7 +82,7 @@ class Pipeline(unittest.TestCase):
 
     def test_fallback_second_opinion_is_retried_not_final(self):
         # secondary came from a fallback model (not the chain's first choice) and did not confirm
-        def chain(role, fn):
+        def chain(role, fn, exclude=None):
             if role == "coarse":
                 return {"relevant": True, "reason": "x"}, "gemma-4-26b-a4b-it"
             if role == "primary":

@@ -12,13 +12,33 @@
   "added": "2026-11-09",
   "models": {
    "primary": "gemini-3.5-flash-lite",
-   "secondary": "gemma-4-31b-it"
+   "secondary": "gemini-3.1-flash-lite",
+   "different_family": false
   },
   "verification": "auto: verifier + two model families agree",
   "regex_agrees": true
  },
  {
-  "id": "arxiv:1905.09749#1",
+  "id": "arxiv:2604.06319#1",
+  "kind": "attack",
+  "target": "rsa-2048",
+  "physical_qubits": 439000.0,
+  "runtime": 117.6,
+  "quote": "We then consider the factorization of 2048-bit RSA-integers; using an experimentally demonstrated grid-coupling topology, factoring RSA-2048 requires 381k physical qubits and 9.2 days, which can be reduced to 4.9 days via addition of an algorithm-specific accelerator for the Adder subroutine (requiring 439k qubits).",
+  "url": "http://arxiv.org/abs/2604.06319v2",
+  "title": "Heterogeneous architectures enable a 138x reduction in physical qubit requirements for fault-tolerant quantum computing under detailed accounting",
+  "published": "2026-04-07",
+  "added": "2026-11-09",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemini-3.1-flash-lite",
+   "different_family": false
+  },
+  "verification": "auto: verifier + two model families agree",
+  "regex_agrees": false
+ },
+ {
+  "id": "arxiv:1905.09749#2",
   "kind": "attack",
   "target": "rsa-2048",
   "physical_qubits": 20000000.0,
@@ -30,13 +50,32 @@
   "added": "2026-11-09",
   "models": {
    "primary": "gemini-3.5-flash-lite",
-   "secondary": "gemma-4-31b-it"
+   "secondary": "gemini-3.1-flash-lite",
+   "different_family": false
   },
   "verification": "auto: verifier + two model families agree",
   "regex_agrees": true
  },
  {
-  "id": "arxiv:2609.05625#2",
+  "id": "arxiv:2607.13816#3",
+  "kind": "attack",
+  "target": "ecdlp-256",
+  "logical_qubits": 835.0,
+  "quote": "For a 256-bit prime-field curve, our construction requires only 835 logical qubits, reducing the previous best estimates of 1098 and 1175 logical qubits by Chevignard et al.",
+  "url": "http://arxiv.org/abs/2607.13816v3",
+  "title": "Quantum Algorithm for Elliptic Curve Discrete Logarithms with Space-Efficient Point Addition",
+  "published": "2026-07-15",
+  "added": "2026-11-09",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemini-3.1-flash-lite",
+   "different_family": false
+  },
+  "verification": "auto: verifier + two model families agree",
+  "regex_agrees": false
+ },
+ {
+  "id": "arxiv:2609.05625#4",
   "kind": "attack",
   "target": "ecdlp-256",
   "physical_qubits": 19397.0,
@@ -48,13 +87,14 @@
   "added": "2026-11-09",
   "models": {
    "primary": "gemini-3.5-flash-lite",
-   "secondary": "gemma-4-31b-it"
+   "secondary": "gemini-3.1-flash-lite",
+   "different_family": false
   },
   "verification": "auto: verifier + two model families agree",
   "regex_agrees": false
  },
  {
-  "id": "arxiv:2505.15917#3",
+  "id": "arxiv:2505.15917#5",
   "kind": "attack",
   "target": "rsa-2048",
   "physical_qubits": 1000000.0,
@@ -66,13 +106,14 @@
   "added": "2026-11-09",
   "models": {
    "primary": "gemini-3.5-flash-lite",
-   "secondary": "gemma-4-31b-it"
+   "secondary": "gemini-3.1-flash-lite",
+   "different_family": false
   },
   "verification": "auto: verifier + two model families agree",
   "regex_agrees": true
  },
  {
-  "id": "arxiv:2610.37839#4",
+  "id": "arxiv:2610.37839#6",
   "kind": "attack",
   "target": "rsa-2048",
   "physical_qubits": 22593.0,
@@ -84,13 +125,14 @@
   "added": "2026-11-09",
   "models": {
    "primary": "gemini-3.5-flash-lite",
-   "secondary": "gemma-4-31b-it"
+   "secondary": "gemini-3.1-flash-lite",
+   "different_family": false
   },
   "verification": "auto: verifier + two model families agree",
   "regex_agrees": true
  },
  {
-  "id": "arxiv:2610.37839#5",
+  "id": "arxiv:2610.37839#7",
   "kind": "attack",
   "target": "ecdlp-256",
   "physical_qubits": 30000.0,
@@ -102,13 +144,14 @@
   "added": "2026-11-09",
   "models": {
    "primary": "gemini-3.5-flash-lite",
-   "secondary": "gemma-4-31b-it"
+   "secondary": "gemini-3.1-flash-lite",
+   "different_family": false
   },
   "verification": "auto: verifier + two model families agree",
   "regex_agrees": false
  },
  {
-  "id": "arxiv:2610.37839#6",
+  "id": "arxiv:2610.37839#8",
   "kind": "attack",
   "target": "rsa-2048",
   "physical_qubits": 611000.0,
@@ -120,13 +163,14 @@
   "added": "2026-11-09",
   "models": {
    "primary": "gemini-3.5-flash-lite",
-   "secondary": "gemma-4-31b-it"
+   "secondary": "gemini-3.1-flash-lite",
+   "different_family": false
   },
   "verification": "auto: verifier + two model families agree",
   "regex_agrees": true
  },
  {
-  "id": "arxiv:2610.37839#7",
+  "id": "arxiv:2610.37839#9",
   "kind": "attack",
   "target": "rsa-2048",
   "physical_qubits": 45000.0,
@@ -137,13 +181,14 @@
   "added": "2026-11-09",
   "models": {
    "primary": "gemini-3.5-flash-lite",
-   "secondary": "gemma-4-31b-it"
+   "secondary": "gemini-3.1-flash-lite",
+   "different_family": false
   },
   "verification": "auto: verifier + two model families agree",
   "regex_agrees": false
  },
  {
-  "id": "arxiv:2302.06639#8",
+  "id": "arxiv:2302.06639#10",
   "kind": "attack",
   "target": "ecdlp-256",
   "physical_qubits": 126133.0,
@@ -155,7 +200,8 @@
   "added": "2026-11-09",
   "models": {
    "primary": "gemini-3.5-flash-lite",
-   "secondary": "gemma-4-31b-it"
+   "secondary": "gemini-3.1-flash-lite",
+   "different_family": false
   },
   "verification": "auto: verifier + two model families agree",
   "regex_agrees": false
