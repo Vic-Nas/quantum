@@ -6,10 +6,12 @@ attack or a new hardware claim, so it is applied automatically, behind automatic
 """
 import datetime as dt
 import json
+import re
 from pathlib import Path
 
 from . import llm, regex_extract, router, sources, stages
 from .prefilter import prefilter
+from .textutil import qubit_regime
 from .verify import any_agrees, verify
 
 DATA = Path("data")
@@ -18,8 +20,8 @@ MAX_AUTO_PER_RUN = 3  # more new headline rows than this in one run is held for 
 ROWS = {"attack": "attacks.json", "hardware": "hardware.json"}
 
 
-def _verified(extraction, item):
-    return verify(extraction, stages.source_text(item), sources.is_allowlisted(item["url"]))
+def _verified(extraction, item, regime=None):
+    return verify(extraction, stages.source_text(item), sources.is_allowlisted(item["url"]), regime=regime, context=item["title"])
 
 
 def dedupe_estimates(ests: list) -> list:
@@ -31,7 +33,7 @@ def dedupe_estimates(ests: list) -> list:
     for i, a in enumerate(ests):
         av = a["values"]
         dominated = any(
-            j != i and bv.get("target") == av.get("target") and all(bv.get(k) == v for k, v in av.items())
+            j != i and b.get("tier") != "drop" and bv.get("target") == av.get("target") and all(bv.get(k) == v for k, v in av.items())
             and (len(bv) > len(av) or (len(bv) == len(av) and j < i))
             for j, b in enumerate(ests) for bv in [b["values"]])
         if not dominated:
@@ -39,7 +41,7 @@ def dedupe_estimates(ests: list) -> list:
     return keep
 
 
-def process(item: dict, rows: list, use_llm: bool) -> dict:
+def process(item: dict, rows: list, use_llm: bool, fulltext: bool = False) -> dict:
     """Run one item through every stage. Raises llm.LLMError if the models are unavailable."""
     rec = {"id": item["id"], "version": item["version"], "url": item["url"], "title": item["title"],
            "published": item["published"], "tier": "drop", "reason": "", "estimates": [], "trail": {}}
@@ -59,35 +61,57 @@ def process(item: dict, rows: list, use_llm: bool) -> dict:
     if not c.get("relevant"):
         rec["reason"] = "coarse filter"
         return rec
-    ex1, m1 = llm.call_chain("primary", lambda mod: stages.extract(item, mod))
-    v1 = _verified(ex1, item)
-    rec["trail"]["primary"] = {"model": m1, "extraction": ex1, "estimates": v1["estimates"]}
-    v2, m2 = None, None
-    needs = [e for e in v1["ok_estimates"]
-             if v1["kind"] == "hardware" or router.is_frontier(e["values"], rows)]
-    if needs:
-        ex2, m2 = llm.call_chain("secondary", lambda mod: stages.extract(item, mod), exclude=m1)
-        v2 = _verified(ex2, item)
-        rec["trail"]["secondary"] = {"model": m2, "extraction": ex2, "estimates": v2["estimates"]}
-    independent = bool(m2) and m2 != m1  # a different model; the family is logged so this can be tightened later
-    unconfirmed = [e for e in needs if not (v2 and any_agrees(e["values"], v2["ok_estimates"]))]
-    if m2 and m2 != llm.CHAINS["secondary"][0] and unconfirmed:
-        # The second opinion came from a fallback model. Do not demote a good row for good because the
-        # preferred model was down; the queue retries it on a later run.
-        raise llm.LLMError(f"second opinion came from fallback model {m2}, retrying later")
-    for e in v1["estimates"]:
-        second = independent and e["ok"] and any_agrees(e["values"], v2["ok_estimates"] if v2 else [])
-        tier, why = router.route(v1["kind"], e["ok"], e["values"], second, rows)
-        if v2 and not independent and tier == "A":
-            tier, why = "B", "second opinion came from the same model as the first"
-        rec["estimates"].append({"kind": v1["kind"], "values": e["values"], "quote": e["quote"], "tier": tier,
-                                 "reason": why, "regex_agrees": e["ok"] and any_agrees(e["values"], rx_v["ok_estimates"])})
+    views, regime = [item], qubit_regime(f"{item['title']}. {item['text']}")
+    if fulltext and item["source"] == "arxiv":
+        text = sources.fetch_fulltext(item["id"])
+        rec["trail"]["fulltext_chars"] = len(text)
+        regime = qubit_regime(text) if text else regime
+        views += [{**item, "text": ch} for ch in stages.chunks(text, 12000) if re.search(r"qubit", ch, re.I)]
+    m1 = m2 = None
+    kind = "attack"
+    for n, view in enumerate(views):
+        ex1, m1v = llm.call_chain("primary", lambda mod: stages.extract(view, mod))
+        v1 = _verified(ex1, view, regime)
+        m1 = m1v or m1
+        kind = v1["kind"] if v1["kind"] in ("attack", "hardware") else kind
+        if n == 0:
+            rec["trail"]["primary"] = {"model": m1v, "extraction": ex1, "estimates": v1["estimates"]}
+        needs = [e for e in v1["ok_estimates"] if v1["kind"] == "hardware" or router.is_frontier(e["values"], rows)]
+        v2, m2v = None, None
+        if needs:
+            ex2, m2v = llm.call_chain("secondary", lambda mod: stages.extract(view, mod), exclude=m1v)
+            v2 = _verified(ex2, view, regime)
+            m2 = m2v or m2
+            if n == 0:
+                rec["trail"]["secondary"] = {"model": m2v, "extraction": ex2, "estimates": v2["estimates"]}
+            unconfirmed = [e for e in needs if not any_agrees(e["values"], v2["ok_estimates"])]
+            if m2v != llm.CHAINS["secondary"][0] and unconfirmed:
+                # The second opinion came from a fallback model: retry later instead of demoting a good row for good.
+                raise llm.LLMError(f"second opinion came from fallback model {m2v}, retrying later")
+        independent = bool(m2v) and m2v != m1v  # a different model; the family is logged so this can be tightened later
+        v3 = None
+        if v2 and any(not any_agrees(e["values"], v2["ok_estimates"]) for e in needs):
+            try:  # a rare tie-break: a third model, different from both, so that two of three can agree
+                ex3, m3 = llm.call_chain("escalation", lambda mod: stages.extract(view, mod))
+                if m3 not in (m1v, m2v):
+                    v3 = _verified(ex3, view, regime)
+            except llm.LLMError:
+                v3 = None  # no tie-break available: the estimate stays unconfirmed
+        for e in v1["estimates"]:
+            second = independent and e["ok"] and (any_agrees(e["values"], v2["ok_estimates"] if v2 else [])
+                                                  or bool(v3 and any_agrees(e["values"], v3["ok_estimates"])))
+            tier, why = router.route(v1["kind"], e["ok"], e["values"], second, rows)
+            if v2 and not independent and tier == "A":
+                tier, why = "B", "second opinion came from the same model as the first"
+            rec["estimates"].append({"kind": v1["kind"], "values": e["values"], "quote": e["quote"], "tier": tier, "reason": why,
+                                     "regex_agrees": e["ok"] and any_agrees(e["values"], rx_v["ok_estimates"]),
+                                     "view": "abstract" if n == 0 else f"full text, part {n}"})
+    rec["trail"]["regex_agrees_any"] = any(e["regex_agrees"] for e in rec["estimates"])
     rec["estimates"] = dedupe_estimates(rec["estimates"])
     order = {"A": 0, "B": 1, "drop": 2}
     best = min(rec["estimates"], key=lambda x: order[x["tier"]], default=None)
     rec["tier"], rec["reason"] = (best["tier"], best["reason"]) if best else ("drop", "no estimates")
-    rec["models"] = {"primary": m1, "secondary": m2,
-                     "different_family": bool(m2) and llm.family(m1) != llm.family(m2)}
+    rec["models"] = {"primary": m1, "secondary": m2, "different_family": bool(m2) and llm.family(m1) != llm.family(m2)}
     return rec
 
 
@@ -127,7 +151,7 @@ def _load(path, default):
 
 def run(use_llm: bool = True, limit: int | None = None, items: list | None = None,
         auto_apply: bool = True, dry: bool = False, max_auto: int = MAX_AUTO_PER_RUN,
-        check_canary: bool = True):
+        check_canary: bool = True, fulltext: bool = False):
     """Run the pipeline. dry=True writes nothing. Returns a summary dict."""
     errors = {}
     if items is None:
@@ -146,7 +170,7 @@ def run(use_llm: bool = True, limit: int | None = None, items: list | None = Non
     for it, attempts in work:
         key = f"{it['id']}@{it['version']}"
         try:
-            rec = process(it, rows["attack"], use_llm)
+            rec = process(it, rows["attack"], use_llm, fulltext)
         except llm.LLMError as e:
             attempts += 1
             if attempts >= MAX_ATTEMPTS:
@@ -207,16 +231,15 @@ def seed():
     keys = {f"{i['id']}@seed" for i in items}
     seen = set(_load(DATA / "seen.json", [])) - keys
     (DATA / "seen.json").write_text(json.dumps(sorted(seen)))
-    for f in ROWS.values():
-        (DATA / f).write_text("[]")
-    return run(items=items, max_auto=10**6, check_canary=False)
+    (DATA / ROWS["attack"]).write_text("[]")  # only the paper baseline is rebuilt; vendor hardware rows are never touched here
+    return run(items=items, max_auto=10**6, check_canary=False, fulltext=True)
 
 
 def retry():
     """Re-check only the queued papers. Does nothing (no fetch, no model call) when the queue is empty."""
     if not _load(DATA / "queue.json", {}):
         return {"processed": 0, "queue_size": 0, "idle": True}
-    return run(items=[])
+    return run(items=[], fulltext=True)
 
 
 MAX_HW_ROWS_PER_RUN = 25  # a burst larger than this is held for a person instead of applied

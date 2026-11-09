@@ -33,6 +33,10 @@ class TextUtil(unittest.TestCase):
     def test_targets(self):
         self.assertEqual(canonical_target("factor 2048-bit RSA integers"), "rsa-2048")
         self.assertEqual(canonical_target("secp256k1 keys"), "ecdlp-256")
+        self.assertEqual(canonical_target("and FFDLP-512, which we propose as a benchmark"), "dlp-ff-512")
+        self.assertEqual(canonical_target("AES-128 key search"), "aes-128")
+        self.assertEqual(canonical_target("a pre-image attack on SHA-256"), "sha-256")
+        self.assertIsNone(canonical_target("a SHA3-256 circuit"))
         self.assertIsNone(canonical_target("lattice crypto"))
 
 
@@ -60,8 +64,10 @@ class Verify(unittest.TestCase):
         self.assertTrue(verify(ex, ABS)["ok_estimates"])
 
     def test_bounds(self):
-        t = "We factor RSA-2048 with 5 logical qubits."
-        self.assertTrue(verify(self._est(t, target="RSA-2048", logical_qubits="5"), t)["ok_estimates"])
+        t = "We factor RSA-2048 with 1,400 logical qubits."
+        self.assertTrue(verify(self._est(t, target="RSA-2048", logical_qubits="1,400"), t)["ok_estimates"])
+        tiny = "We factor RSA-2048 with 5 logical qubits."
+        self.assertFalse(verify(self._est(tiny, target="RSA-2048", logical_qubits="5"), tiny)["ok_estimates"])  # below any real attack
         t2 = "We factor RSA-2048 with 900000000000 logical qubits."
         self.assertFalse(verify(self._est(t2, target="RSA-2048", logical_qubits="900000000000"), t2)["ok_estimates"])
 
@@ -79,8 +85,8 @@ class Verify(unittest.TestCase):
         self.assertIn(381000.0, numbers_in(t))
 
     def test_latex_stripped_quote_still_verifies(self):
-        src = "We solve ECDLP on $\\mathtt{secp256k1}$ using about $1450$ qubits and $40\\cdot 10^6$ Toffoli gates."
-        q = "We solve ECDLP on secp256k1 using about 1450 qubits and 40*10^6 Toffoli gates."
+        src = "We solve ECDLP on $\\mathtt{secp256k1}$ using about $1450$ logical qubits and $40\\cdot 10^6$ Toffoli gates."
+        q = "We solve ECDLP on secp256k1 using about 1450 logical qubits and 40*10^6 Toffoli gates."
         v = verify(self._est(q, target="secp256k1", logical_qubits="1450", toffoli_or_t_count="40*10^6"), src)
         self.assertTrue(v["ok_estimates"], v["estimates"])
         self.assertEqual(v["ok_estimates"][0]["values"]["toffoli_or_t_count"], 4e7)
@@ -88,12 +94,89 @@ class Verify(unittest.TestCase):
         bad = self._est("We solve ECDLP on secp256k1 using about 9 qubits.", target="secp256k1", logical_qubits="9")
         self.assertFalse(verify(bad, src)["ok_estimates"])
 
+    def test_logical_label_must_be_in_the_quote(self):
+        t = "Factoring RSA-2048 with cat qubits needs 22 593 qubits in 3.14 days."
+        wrong = self._est(t, target="RSA-2048", logical_qubits="22 593")
+        self.assertFalse(verify(wrong, t)["ok_estimates"])  # the source never says 'logical'
+        right = self._est(t, target="RSA-2048", physical_qubits="22 593")
+        self.assertTrue(verify(right, t)["ok_estimates"])
+        t2 = "RSA-2048 needs 1 400 logical qubits."
+        mislabeled = self._est(t2, target="RSA-2048", physical_qubits="1 400")
+        self.assertFalse(verify(mislabeled, t2)["ok_estimates"])  # logical qubits recorded as physical
+
+    def test_bad_optional_figure_is_dropped_not_fatal(self):
+        t = "For the NIST curve P-256 the circuit needs 2330 logical qubits and 1.26 \u00b7 1011 Toffoli gates."  # PDF lost the exponent
+        v = verify(self._est(t, target="P-256", logical_qubits="2330", toffoli_or_t_count="1.26"), t)
+        self.assertTrue(v["ok_estimates"], v["estimates"])
+        self.assertNotIn("toffoli_or_t_count", v["ok_estimates"][0]["values"])
+        bad_size = self._est(t, target="P-256", logical_qubits="9999")
+        self.assertFalse(verify(bad_size, t)["ok_estimates"])  # a wrong qubit count is still fatal
+
+    def test_table_row_naming_only_the_bit_size_binds_to_that_curve(self):
+        row = "384 3484 4.52 \u00b7 1011 4.15 \u00b7 1011 17 003 logical qubits"
+        v = verify(self._est(row, target="384-bit elliptic curve", logical_qubits="3484"), row)
+        self.assertTrue(v["ok_estimates"], v["estimates"])
+        self.assertEqual(v["ok_estimates"][0]["values"]["target"], "ecdlp-384")
+        other = "256 2330 1.26 \u00b7 1011 logical qubits"
+        self.assertFalse(verify(self._est(other, target="384-bit elliptic curve", logical_qubits="2330"), other)["ok_estimates"])
+
+    def test_unreadable_table_number_with_a_space_after_the_comma(self):
+        self.assertIn(2953.0, numbers_in("128 1.19 2, 953"))
+        t = "AES-128 attack, #qubits 2, 953"
+        v = verify(self._est(t, target="AES-128", logical_qubits="2,953"), t, regime="logical")
+        self.assertTrue(v["ok_estimates"], v["estimates"])
+
+    def test_lost_exponent_is_not_a_qubit_count(self):
+        t = "a pre-image attack on SHA-256 that requires approximately 212.6 logical qubits."  # really 2^12.6
+        self.assertFalse(verify(self._est(t, target="SHA-256", logical_qubits="212.6"), t)["ok_estimates"])
+
+    def test_aes_table_row_needs_the_paper_to_name_aes(self):
+        row = "overall 128 1.19 2, 953"
+        ex = self._est(row, target="AES-128", logical_qubits="2,953")
+        self.assertTrue(verify(ex, row, regime="logical", context="Applying Grover's algorithm to AES")["ok_estimates"])
+        self.assertFalse(verify(ex, row, regime="logical", context="Something about hashes")["ok_estimates"])
+
+    def test_ellipsis_joined_quote_falls_back_to_a_real_segment(self):
+        src = "Intro. Our SHA-256 circuit has 2402 logical qubits. Other text. Later the total is 1.39 million."
+        v = verify(self._est("Our SHA-256 circuit has 2402 logical qubits. ... Later the total is made up.", target="SHA-256",
+                             logical_qubits="2402"), src)
+        self.assertTrue(v["ok_estimates"], v["estimates"])
+        self.assertEqual(v["ok_estimates"][0]["quote"], "Our SHA-256 circuit has 2402 logical qubits.")
+        self.assertFalse(verify(self._est("Invented sentence. ... Another invented one.", target="SHA-256", logical_qubits="2402"), src)["ok_estimates"])
+        src2 = "Our SHA-256 circuit has 2402 logical qubits. Elsewhere the physical total is 1.39 million."
+        v2 = verify(self._est("Elsewhere the physical total is 1.39 million. ... Our SHA-256 circuit has 2402 logical qubits.", target="SHA-256", logical_qubits="2402"), src2)
+        self.assertEqual(v2["ok_estimates"][0]["quote"], "Our SHA-256 circuit has 2402 logical qubits.")  # the segment holding the claim, not the longest
+
+    def test_unlabeled_table_row_gets_its_curve_from_the_title(self):
+        row = "384 3484 4.52 \u00b7 1011 4.15 \u00b7 1011 17 003 logical qubits"
+        ctx = "Quantum resource estimates for computing elliptic curve discrete logarithms"
+        v = verify({"kind": "attack", "estimates": [{"quote": row, "fields": {"logical_qubits": "3484"}}]}, row, context=ctx)
+        self.assertTrue(v["ok_estimates"], v["estimates"])
+        self.assertEqual(v["ok_estimates"][0]["values"]["target"], "ecdlp-384")
+        odd = verify({"kind": "attack", "estimates": [{"quote": row, "fields": {"target": "ECDLP in E(Fp)", "logical_qubits": "3484"}}]}, row, context=ctx)
+        self.assertTrue(odd["ok_estimates"], odd["estimates"])  # an unrecognisable stated target is replaced by the inferred one
+        none = verify({"kind": "attack", "estimates": [{"quote": row, "fields": {"logical_qubits": "3484"}}]}, row, context="A paper about hashing")
+        self.assertFalse(none["ok_estimates"])  # no way to know what the row is about
+        both = "256 384 3484 logical qubits"
+        self.assertFalse(verify({"kind": "attack", "estimates": [{"quote": both, "fields": {"logical_qubits": "3484"}}]}, both, context=ctx)["ok_estimates"])
+
+    def test_physical_label_needs_the_word_in_a_logical_only_paper(self):
+        t = "AES-128 attack, #qubits 2, 953"
+        v = verify(self._est(t, target="AES-128", physical_qubits="2,953"), t, regime="logical")
+        self.assertTrue(v["ok_estimates"], v["estimates"])  # relabeled: in a logical-only paper an unlabeled count is logical
+        self.assertEqual(v["ok_estimates"][0]["values"].get("logical_qubits"), 2953.0)
+        self.assertNotIn("physical_qubits", v["ok_estimates"][0]["values"])
+        mixed = verify(self._est(t, target="AES-128", physical_qubits="2,953"), t, regime=None)
+        self.assertEqual(mixed["ok_estimates"][0]["values"].get("physical_qubits"), 2953.0)  # other papers: label kept as given
+        self.assertTrue(verify(self._est(t, target="AES-128", logical_qubits="2,953"), t, regime="logical")["ok_estimates"])
+
     def test_not_allowlisted(self):
         self.assertFalse(verify(regex_extract.extract(ABS), ABS, allowlisted=False)["ok_estimates"])
 
     def test_agree(self):
         self.assertTrue(agree({"target": "x", "a": 1.0}, {"target": "x", "a": 1.0}))
         self.assertFalse(agree({"target": "x", "a": 1.0}, {"target": "x", "a": 2.0}))
+        self.assertFalse(agree({"target": "x", "physical_qubits": 10000.0, "logical_qubits": 800.0}, {"target": "x", "logical_qubits": 800.0}))
         self.assertTrue(agree({"target": "x", "q": 22593.0, "r": 75.36}, {"target": "x", "q": 23000.0, "r": 75.36}))
         self.assertFalse(agree({"target": "x", "q": 22593.0}, {"target": "x", "q": 27000.0}))  # 20% apart is a different result
         self.assertFalse(agree({"a": 1.0}, {"a": 1.0}))

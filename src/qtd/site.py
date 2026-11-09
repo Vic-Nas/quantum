@@ -9,8 +9,8 @@ from pathlib import Path
 
 from . import cardimg, cards, chart
 from .breakdate import METRICS, earliest_path, requirement, supply_points
-from .present import (ALGORITHMS, ALGORITHMS_NOTE, SECURES, SECURES_NOTE, TARGET_NAMES, TARGET_ORDER, clean, count, date_label, dom_id, duration, headline,
-                      label, paper_id, plain_reason, series, short_count, strip_dashes, year_frac)
+from .present import (ALGORITHMS, ALGORITHMS_NOTE, PROXY_TARGETS, SECURES, SECURES_NOTE, TARGET_NAMES, TARGET_ORDER, clean, count, date_label, dom_id, duration, headline,
+                      label, paper_id, plain_reason, sci, series, short_count, strip_dashes, year_frac)
 
 WEB = Path("web")
 DEFAULT_URL = "https://vic-nas.github.io/quantum/"
@@ -156,23 +156,51 @@ def tiles(rows, hw_rows, targets):
     return "".join(out)
 
 
-def algorithms_tile(n_active):
-    broken = sum(1 for a in ALGORITHMS if a[2] == "broken")
+def _algo_data(rows, hw_rows, target):
+    """Cheapest published numbers for a target: logical/physical qubits, gate count, the source row and the earliest path."""
+    mine = [r for r in rows if r.get("target") == target]
+    if not mine:
+        return None
+    best = lambda key: min((r for r in mine if r.get(key) is not None), key=lambda r: r[key], default=None)
+    return {"logical": best("logical_qubits"), "physical": best("physical_qubits"), "gates": best("toffoli_or_t_count"),
+            "path": earliest_path(rows, hw_rows, target), "n": len(mine)}
+
+
+def algorithms_tile(rows):
+    broken = [a for a in ALGORITHMS if a[2] == "broken"]
     weak = sum(1 for a in ALGORITHMS if a[2] == "weakened")
-    charted = len({a[0] for a in ALGORITHMS if a[3]})
     return (f'<a class="hl" id="tab-all" role="tab" href="#t-all" data-tab="t-all" aria-selected="false"><span class="what">Everything affected</span>'
-            f'<span class="tech">Every algorithm in common use</span><span class="nums"><span class="now">{broken}</span></span>'
-            f'<span class="cap">families broken, {weak} more weakened</span><span class="cap">{charted} of the {broken} broken are charted here</span></a>')
+            f'<span class="tech">Every algorithm in common use</span><span class="nums"><span class="now">{len(broken)}</span></span>'
+            f'<span class="cap">families broken, {weak} more weakened</span></a>')
 
 
-def algorithms_section():
-    rows = "".join(
-        f'<tr><td><strong>{e(name)}</strong></td><td>{e(used)}</td><td class="st {e(st)}">{e(st.capitalize())}</td>'
-        f'<td>{f"<a href=#t-{e(tid)} data-tab=t-{e(tid)}>{e(note)}</a>" if tid else e(note)}</td></tr>'
-        for name, used, st, tid, note in ALGORITHMS)
+def algorithms_section(rows, hw_rows):
+    def src(r, text):
+        return f'<a href="{e(r["url"])}" title="{e(clean(r["quote"], 300))}">{e(text)}</a>' if r else ""
+
+    body = []
+    for name, used, st, target, note in ALGORITHMS:
+        d = _algo_data(rows, hw_rows, target)
+        if not d:
+            need, path = "", ""
+        else:
+            parts = []
+            for key, word in (("physical", "physical qubits"), ("logical", "logical qubits")):
+                if d[key]:
+                    parts.append(f'{src(d[key], short_count(d[key][key + "_qubits"]))} {word}')
+            if st == "weakened" and d["gates"]:
+                parts.append(f'about {src(d["gates"], sci(d["gates"]["toffoli_or_t_count"]))} gates in a row')
+            need = "<br>".join(parts) or ""
+            p = d["path"]
+            when = f'<strong>{p["year"]}</strong>{" or later" if target in PROXY_TARGETS else ""}' if p.get("year") else "none announced yet"
+            path = when if st == "broken" else "not practical (far too many steps in a row)"
+        sub = f'<span class="dim">{e(note)}</span>' if note else ""
+        body.append(f'<tr><td><strong>{e(name)}</strong></td><td>{e(used)}</td><td class="st {e(st)}">{e(st.capitalize())}</td>'
+                    f'<td>{need}{"<br>" if need and sub else ""}{sub}</td><td>{path}</td></tr>')
     return ('<section class="target" id="t-all" role="tabpanel" aria-labelledby="tab-all"><header><h2>Everything a quantum computer affects</h2>'
             f'<p>{e(ALGORITHMS_NOTE)}</p></header><div class="algos"><table><thead><tr><th>Algorithm</th><th>Where you meet it</th>'
-            f'<th>Quantum threat</th><th>On this page</th></tr></thead><tbody>{rows}</tbody></table></div></section>')
+            f'<th>Quantum threat</th><th>Cheapest published attack needs</th><th>Earliest announced path</th></tr></thead>'
+            f'<tbody>{"".join(body)}</tbody></table></div></section>')
 
 
 def radar_rows(path):
@@ -222,7 +250,7 @@ def build(out="site", data="data"):
     if problems or not gate_ok:
         why = "; ".join(f"{k}: {clean(v, 80)}" for k, v in problems) or "the safety check failed, so new papers are held back"
         alert = f'<p class="alert" role="alert"><strong>The last update had a problem.</strong> {e(why)}</p>'
-    present = sorted({r.get("target") for r in rows}, key=lambda t: (TARGET_ORDER.index(t) if t in TARGET_ORDER else 99, str(t)))
+    present = [t for t in TARGET_ORDER if any(r.get("target") == t for r in rows)]  # charts for the headline cases; the rest are in the table
     queued = json.loads((data / "queue.json").read_text()) if (data / "queue.json").exists() else {}
     queued_ids = {k.rsplit("@", 1)[0] for k in queued}
     radar = [r for r in radar_rows(data / "candidates") if r.get("id") not in queued_ids]
@@ -248,8 +276,8 @@ def build(out="site", data="data"):
 <section class="hero"><h1>How close is quantum computing to breaking today's encryption?</h1>
 <p class="lede">The machine size the cheapest published attack needs, against the machines vendors plan to build. The year they meet is the
 earliest announced path to a break. Plans, not delivered machines.</p>
-<div class="hls" role="tablist" aria-label="What to look at">{tiles(rows, hw_rows, present)}{algorithms_tile(0)}</div></section>
-{alert}{body}{algorithms_section()}
+<div class="hls" role="tablist" aria-label="What to look at">{tiles(rows, hw_rows, present)}{algorithms_tile(rows)}</div></section>
+{alert}{body}{algorithms_section(rows, hw_rows)}
 
 {radar_html}
 <footer><span>Every figure is quoted from a paper or vendor page and checked against its text. The lists of what is affected are written by hand.</span><a href="data/attacks.json">Raw data</a></footer>

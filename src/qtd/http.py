@@ -17,7 +17,7 @@ def get(url: str, timeout: int = 30, retries: int = 4, headers: dict | None = No
             wait = 30 * (i + 1) if e.code in (429, 503) else 2 ** i
         except Exception as e:  # noqa: BLE001
             last = e
-            wait = 2 ** i
+            wait = 8 * (i + 1)  # timeouts and resets usually mean a busy server: give it time
         if i < retries - 1:
             time.sleep(wait)
     raise RuntimeError(f"GET failed: {url}: {last}")

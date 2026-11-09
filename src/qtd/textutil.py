@@ -6,7 +6,7 @@ _WORDNUM = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 
             "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10}
 
 NUM_RE = re.compile(
-    r"(?P<num>\d{1,3}(?:[,\u202f\u00a0 ]\d{3})+(?!\d)(?:\.\d+)?|\d+(?:\.\d+)?|\ba\b|\ban\b|\bone\b|\btwo\b"
+    r"(?P<num>\d{1,3}(?:,\s?\d{3}|[\u202f\u00a0 ]\d{3})+(?!\d)(?:\.\d+)?|\d+(?:\.\d+)?|\ba\b|\ban\b|\bone\b|\btwo\b"
     r"|\bthree\b|\bfour\b|\bfive\b|\bsix\b|\bseven\b|\beight\b|\bnine\b|\bten\b)"
     r"(?:\s*(?:[x*\u00d7]|\\times|\\cdot|\u22c5)\s*10\^?\{?(?P<exp>-?\d+)\}?)?"
     r"(?:\s*(?P<mult>thousand|million|billion|trillion)\b|(?P<k>k)\b)?",
@@ -35,7 +35,7 @@ def numbers_in(text: str):
     """Yield every numeric value in text, resolving 'a million', '1.2 million', '1,000,000'."""
     out = []
     for m in NUM_RE.finditer(text or ""):
-        raw = re.sub(r"[,\u202f\u00a0 ]", "", m.group("num").lower())
+        raw = re.sub(r"[,\s\u202f\u00a0]", "", m.group("num").lower())
         if raw in _WORDNUM:
             if not m.group("mult"):
                 continue  # bare 'a' / 'one' is not a quantity unless scaled
@@ -98,7 +98,11 @@ _TARGETS = [
     ("ecdlp-256", r"\bsecp256k1\b|\bsecp256r1\b|\bp-?256\b|\bcurve25519\b|\bed25519\b"
                   r"|\b256[\s-]*bit\s+(?:prime[\s-]*field\s+)?(?:elliptic|ecc|private key|curve)"),
     ("ecdlp-384", r"\bp-?384\b|\b384[\s-]*bit\s+(?:elliptic|ecc|curve)"),
+    ("dlp-ff-512", r"\bFFDLP[\s-]*512\b|\b512[\s-]*bit[\s-]+(?:finite[\s-]field|FFDLP)"),
     ("dlp-ffdhe-2048", r"\bffdhe2048\b|\b2048[\s-]*bit\s+(?:diffie|finite[\s-]field|dh\b)"),
+    ("aes-128", r"\baes[\s-]*128\b"),
+    ("aes-256", r"\baes[\s-]*256\b"),
+    ("sha-256", r"\bsha[\s-]*(?:2[\s-]*)?256\b"),
     ("pairing-bls12-381", r"\bbls12-?381\b"),
     ("pairing-bn254", r"\bbn-?254\b|\balt-?bn128\b"),
 ]
@@ -118,3 +122,68 @@ def all_targets(text: str) -> set:
     """Every canonical target mentioned in text."""
     t = norm(text)
     return {key for key, rx in _TARGETS_C if rx.search(t)}
+
+
+def number_followed_by(text: str, value: float, word: str, window: int = 28) -> bool:
+    """True if some occurrence of `value` in text is followed within `window` characters by `word` (case-insensitive)."""
+    for m in NUM_RE.finditer(text or ""):
+        raw = re.sub(r"[,\s\u202f\u00a0]", "", m.group("num").lower())
+        try:
+            v = float(raw)
+        except ValueError:
+            continue
+        if m.group("mult"):
+            v *= _MULT[m.group("mult").lower()]
+        elif m.group("k"):
+            v *= 1e3
+        if abs(v - value) <= 1e-9 * max(1.0, abs(value)) and re.search(word, text[m.end(): m.end() + window], re.I):
+            return True
+    return False
+
+
+def bits_row_for(target: str, quote: str, context: str = "") -> bool:
+    """A table row such as '384 3484 4.52 x 10^11 ...' names its algorithm only by a size. True if `target` is
+    'ecdlp-<bits>' or 'aes-<bits>' and that size stands alone as a number in the quote. For AES the paper's
+    title (`context`) must also name AES, because the row itself never does."""
+    m = re.fullmatch(r"(ecdlp|aes)-(\d+)", target or "")
+    if not m:
+        return False
+    standalone = re.search(r"(?<![\d.,^])" + m.group(2) + r"(?![\d,.]|\s*-?\s*bit)", quote or "")
+    if m.group(1) == "aes":
+        return bool(standalone) and bool(re.search(r"\bAES\b", context or ""))
+    return bool(standalone)
+
+
+def qubit_regime(text: str):
+    """'logical' if a paper only ever counts logical qubits (so an unlabeled '#qubits' column is logical), else None."""
+    lg = len(re.findall(r"logical[\s-]+qubit", text or "", re.I))
+    ph = len(re.findall(r"(?:physical|noisy|cat)[\s-]+qubit", text or "", re.I))
+    return "logical" if lg >= 2 and ph == 0 else None
+
+
+TARGET_IDS = {key for key, _ in _TARGETS}
+
+
+def repair_quote(quote: str, src_lower: str, needles=()) -> str:
+    """If a model joined passages with an ellipsis, keep the segment that appears verbatim in the source and
+    contains the most of the `needles` (the claimed target and numbers); longer wins a tie."""
+    segs = [norm(x) for x in re.split(r"\s*(?:\.\.\.|\u2026)\s*", quote or "") if x.strip()]
+    ok = [x for x in segs if x.lower() in src_lower]
+    if not ok:
+        return quote
+    hits = lambda seg: sum(1 for n in needles if str(n).strip() and str(n).strip().lower() in seg.lower())
+    return max(ok, key=lambda seg: (hits(seg), len(seg)))
+
+
+def infer_table_target(quote: str, context: str):
+    """A table row without a label ('384 3484 4.52 x 10^11 ...') inside a paper about elliptic curves or AES.
+    Returns 'ecdlp-<bits>' or 'aes-<bits>' when exactly one known size stands alone in the row, else None."""
+    def standalone(n):
+        return re.search(r"(?<![\d.,^])" + str(n) + r"(?![\d,.]|\s*-?\s*bit)", quote or "") is not None
+    if re.search(r"elliptic|ECDLP", context or "", re.I):
+        hits = [n for n in (256, 384) if standalone(n)]
+        return f"ecdlp-{hits[0]}" if len(hits) == 1 else None
+    if re.search(r"\bAES\b", context or ""):
+        hits = [n for n in (128, 192, 256) if standalone(n)]
+        return f"aes-{hits[0]}" if len(hits) == 1 else None
+    return None

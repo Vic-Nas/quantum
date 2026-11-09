@@ -16,7 +16,7 @@ EXTRACT_SCHEMA = {"type": "OBJECT", "properties": {
 
 COARSE_PROMPT = """You are a strict filter. Answer one closed question.
 Does the text below give a NEW quantitative resource estimate for breaking a named cryptosystem
-(RSA, elliptic curve, discrete log) with a quantum computer, OR a public hardware claim with
+(RSA, elliptic curve, discrete log, or a Grover search on AES or SHA) with a quantum computer, OR a public hardware claim with
 stated logical or physical qubit numbers? Surveys, post-quantum cipher design and pure theory
 without numbers are NOT relevant. When unsure, answer true.
 

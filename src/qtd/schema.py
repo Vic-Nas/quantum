@@ -3,9 +3,9 @@
 # field -> (kind, lo, hi). Values outside bounds fail verification.
 ATTACK_FIELDS = {
     "target": ("target", None, None),
-    "logical_qubits": ("number", 1, 1e8),
-    "physical_qubits": ("number", 1, 1e10),
-    "toffoli_or_t_count": ("number", 1e3, 1e20),
+    "logical_qubits": ("number", 100, 1e8),     # no attack on real cryptography needs fewer
+    "physical_qubits": ("number", 1000, 1e10),
+    "toffoli_or_t_count": ("number", 1e3, 1e30),  # Grover attacks on AES or SHA need around 1e24 gates
     "runtime": ("duration", 1e-3, 1e5),  # hours
 }
 HARDWARE_FIELDS = {

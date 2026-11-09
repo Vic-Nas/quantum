@@ -1,5 +1,5 @@
 {
- "note": "Papers used to build the baseline. History papers give the timeline its earlier points; each goes through the normal verified pipeline.",
+ "note": "Papers used to build the baseline. History papers give the timeline its earlier points; each goes through the normal verified pipeline, now reading the full text.",
  "ids": [
   "1905.09749",
   "1706.06752",
@@ -9,6 +9,9 @@
   "2604.06319",
   "2607.13816",
   "2609.05625",
-  "2610.37839"
+  "2610.37839",
+  "1512.04965",
+  "1603.09383",
+  "2603.28846"
  ]
 }

@@ -16,7 +16,7 @@ e = sub.add_parser("eval", help="score regex and models against the gold set")
 e.add_argument("--no-llm", action="store_true")
 a = ap.parse_args()
 if a.cmd == "run":
-    out = {"papers": pipeline.run(use_llm=not a.no_llm, limit=a.limit, auto_apply=not a.no_auto)}
+    out = {"papers": pipeline.run(use_llm=not a.no_llm, limit=a.limit, auto_apply=not a.no_auto, fulltext=True)}
     if not a.no_llm:
         out["hardware"] = pipeline.run_hardware()
     print(json.dumps(out, indent=1))

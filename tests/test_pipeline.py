@@ -26,7 +26,8 @@ def fake_chain(fail=False, same_family=False, relevant=True):
         if role == "coarse":
             return {"relevant": relevant, "reason": "x"}, "gemma-4-26b-a4b-it"
         ex = {"kind": "attack", "estimates": [{"quote": QUOTE, "fields": {"target": "RSA-2048", "physical_qubits": "a million"}}]}
-        model = {"primary": "gemini-3.5-flash-lite", "secondary": "gemini-3.5-flash-lite" if same_family else "gemini-3.1-flash-lite"}[role]
+        model = {"primary": "gemini-3.5-flash-lite", "secondary": "gemini-3.5-flash-lite" if same_family else "gemini-3.1-flash-lite",
+                 "escalation": "gemini-3.8-flash"}[role]
         return ex, model
     return chain
 
@@ -119,9 +120,26 @@ class Retry(unittest.TestCase):
         (Path(self.tmp) / "gold" / "gold.jsonl").write_text("")
         (Path(self.tmp) / "queue.json").write_text(json.dumps({"arxiv:9999.00001@1": {"item": item(1), "attempts": 1, "last_error": "x"}}))
         with mock.patch.object(llm, "call_chain", fake_chain()), mock.patch.object(pipeline, "canary", lambda: {"ok": True}), \
-                mock.patch.object(pipeline.sources, "fetch_all", side_effect=AssertionError("must not fetch")):
+                mock.patch.object(pipeline.sources, "fetch_all", side_effect=AssertionError("must not fetch")), \
+                mock.patch.object(pipeline.sources, "fetch_fulltext", return_value=""):
             r = pipeline.retry()
         self.assertEqual((r["processed"], r["queue_size"], r["auto_applied"]), (1, 0, 1))
+
+
+class Seed(unittest.TestCase):
+    def test_seed_rebuilds_papers_but_leaves_hardware_rows_alone(self):
+        tmp = tempfile.mkdtemp()
+        pipeline.DATA = Path(tmp)
+        (Path(tmp) / "seed_papers.json").write_text(json.dumps({"ids": ["1.1"]}))
+        (Path(tmp) / "hardware.json").write_text(json.dumps([{"id": "hw#0", "actor": "IonQ"}]))
+        (Path(tmp) / "attacks.json").write_text(json.dumps([{"id": "old#0"}]))
+        (Path(tmp) / "gold").mkdir()
+        (Path(tmp) / "gold" / "gold.jsonl").write_text("")
+        with mock.patch.object(pipeline.sources, "fetch_arxiv_ids", return_value=[item()]), \
+                mock.patch.object(llm, "call_chain", fake_chain()), mock.patch.object(pipeline.sources, "fetch_fulltext", return_value=""):
+            pipeline.seed()
+        self.assertEqual(json.loads((Path(tmp) / "hardware.json").read_text()), [{"id": "hw#0", "actor": "IonQ"}])
+        self.assertNotIn("old#0", (Path(tmp) / "attacks.json").read_text())
 
 
 class SourceText(unittest.TestCase):
@@ -137,6 +155,49 @@ class SourceText(unittest.TestCase):
         self.assertEqual(v["ok_estimates"][0]["values"]["physical_qubits"], 2e7)
 
 
+class TieBreak(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        pipeline.DATA = Path(self.tmp)
+        (Path(self.tmp) / "gold").mkdir()
+        (Path(self.tmp) / "gold" / "gold.jsonl").write_text("")
+
+    def chain(self, second_ok, third_ok):
+        base = fake_chain()
+        empty = {"kind": "attack", "estimates": []}
+
+        def fn(role, f, exclude=None):
+            if role == "secondary" and not second_ok:
+                return empty, "gemini-3.1-flash-lite"
+            if role == "escalation":
+                return (base("primary", f)[0] if third_ok else empty), "gemini-3.8-flash"
+            return base(role, f, exclude)
+        return fn
+
+    def test_two_of_three_confirm(self):
+        with mock.patch.object(llm, "call_chain", self.chain(second_ok=False, third_ok=True)), \
+                mock.patch.object(pipeline, "canary", lambda: {"ok": True}):
+            r = pipeline.run(items=[item()])
+        self.assertEqual((r["counts"]["A"], r["auto_applied"]), (1, 1))
+
+    def test_one_of_three_is_not_enough(self):
+        with mock.patch.object(llm, "call_chain", self.chain(second_ok=False, third_ok=False)), \
+                mock.patch.object(pipeline, "canary", lambda: {"ok": True}):
+            r = pipeline.run(items=[item()])
+        self.assertEqual((r["counts"]["A"], r["counts"]["B"], r["auto_applied"]), (0, 1, 0))
+
+    def test_unavailable_tiebreak_leaves_it_unconfirmed(self):
+        def fn(role, f, exclude=None):
+            if role == "escalation":
+                raise llm.LLMError("quota")
+            if role == "secondary":
+                return {"kind": "attack", "estimates": []}, "gemini-3.1-flash-lite"
+            return fake_chain()(role, f, exclude)
+        with mock.patch.object(llm, "call_chain", fn):
+            r = pipeline.run(items=[item()])
+        self.assertEqual((r["counts"]["B"], r["auto_applied"]), (1, 0))
+
+
 class Dedupe(unittest.TestCase):
     def test_title_and_abstract_quotes_of_one_result_collapse(self):
         a = {"values": {"target": "rsa-2048", "physical_qubits": 1e6}}
@@ -145,6 +206,8 @@ class Dedupe(unittest.TestCase):
         d = {"values": {"target": "rsa-2048", "physical_qubits": 5e5}}
         self.assertEqual(pipeline.dedupe_estimates([a, b, c, d]), [b, c, d])
         self.assertEqual(len(pipeline.dedupe_estimates([a, dict(a)])), 1)  # exact duplicates keep one
+        failed_rich = dict(b, tier="drop")  # a richer estimate that failed verification must not erase a verified one
+        self.assertEqual(pipeline.dedupe_estimates([a, failed_rich]), [a, failed_rich])
 
 
 class Chain(unittest.TestCase):

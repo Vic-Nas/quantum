@@ -8,6 +8,10 @@ TARGET_LABELS = {
     "ecdlp-256": ("256-bit elliptic curve", "secp256k1, P-256, Curve25519, Ed25519"),
     "ecdlp-384": ("384-bit elliptic curve", "P-384"),
     "dlp-ffdhe-2048": ("2048-bit finite-field DH", "ffdhe2048"),
+    "dlp-ff-512": ("512-bit finite-field discrete log", "smaller than the sizes in use"),
+    "aes-128": ("AES-128", "key search with Grover's algorithm"),
+    "aes-256": ("AES-256", "key search with Grover's algorithm"),
+    "sha-256": ("SHA-256", "pre-image search with Grover's algorithm"),
     "pairing-bls12-381": ("BLS12-381", ""),
     "pairing-bn254": ("BN254", ""),
 }
@@ -181,16 +185,33 @@ def plain_reason(reason: str) -> str:
 
 # Hand-written (not extracted): the algorithms people actually use that a large quantum computer affects.
 # status: "broken" = Shor's algorithm recovers the key; "weakened" = Grover's algorithm halves the security level.
+# target: which data to show (a pairing curve is attacked as an elliptic curve over a field of about that size).
 ALGORITHMS = [
-    ("RSA (2048, 3072, 4096 bits)", "HTTPS certificates, signed software and updates, older PGP email, some VPNs", "broken", "rsa-2048", "RSA-2048 charted"),
-    ("secp256k1 (ECDSA)", "Bitcoin, Ethereum and most other blockchains", "broken", "ecdlp-256", "charted"),
-    ("P-256 (secp256r1)", "HTTPS, passkeys, many corporate systems", "broken", "ecdlp-256", "charted with 256-bit curves"),
-    ("Curve25519, X25519 and Ed25519", "SSH keys, Signal, WireGuard, modern HTTPS key exchange, Tor", "broken", "ecdlp-256", "charted with 256-bit curves"),
-    ("P-384 and larger curves", "Government and enterprise HTTPS, some code signing", "broken", None, "not charted yet"),
-    ("Finite-field Diffie-Hellman and DSA", "Older HTTPS, SSH and VPN setups", "broken", None, "not charted yet"),
-    ("BLS12-381 and BN254 pairing curves", "Ethereum validator signatures, zero-knowledge proofs, KZG commitments", "broken", None, "not charted yet"),
-    ("AES-128", "Disk and network encryption", "weakened", None, "use AES-256"),
-    ("SHA-256 and other hashes", "Bitcoin mining and addresses, certificates, passwords", "weakened", None, "use longer outputs"),
+    ("RSA (2048, 3072, 4096 bits)", "HTTPS certificates, signed software and updates, older PGP email, some VPNs", "broken", "rsa-2048", "2048-bit shown"),
+    ("secp256k1 (ECDSA)", "Bitcoin, Ethereum and most other blockchains", "broken", "ecdlp-256", ""),
+    ("P-256 (secp256r1)", "HTTPS, passkeys, many corporate systems", "broken", "ecdlp-256", ""),
+    ("Curve25519, X25519 and Ed25519", "SSH keys, Signal, WireGuard, modern HTTPS key exchange, Tor", "broken", "ecdlp-256", ""),
+    ("P-384 and larger curves", "Government and enterprise HTTPS, some code signing", "broken", "ecdlp-384", "384-bit shown"),
+    ("Finite-field Diffie-Hellman and DSA", "Older HTTPS, SSH and VPN setups", "broken", "dlp-ff-512", "512-bit field shown; real keys are larger"),
+    ("BLS12-381 and BN254 pairing curves", "Ethereum validator signatures, zero-knowledge proofs, KZG commitments", "broken", "ecdlp-384",
+     "attacked like a curve over a 381-bit field"),
+    ("AES-128", "Disk and network encryption", "weakened", "aes-128", ""),
+    ("SHA-256 and other hashes", "Bitcoin mining and addresses, certificates, passwords", "weakened", "sha-256", ""),
 ]
+# Targets whose published figure is for a smaller size than the keys in use: the real date can only be later.
+PROXY_TARGETS = {"dlp-ff-512"}
 ALGORITHMS_NOTE = ("Broken: a large enough quantum computer recovers the secret key. Weakened: the security level is roughly halved, "
                    "so larger keys fix it. Replacements exist (NIST standardised ML-KEM, ML-DSA and SLH-DSA in 2024).")
+
+
+_SUP = str.maketrans("0123456789-", "\u2070\u00b9\u00b2\u00b3\u2074\u2075\u2076\u2077\u2078\u2079\u207b")
+
+
+def sci(n) -> str:
+    """4.52e11 -> '4.5 x 10^11' using superscript digits; small numbers keep their commas."""
+    if n is None:
+        return ""
+    if n < 1e6:
+        return f"{n:,.0f}"
+    exp = len(f"{int(n):d}") - 1
+    return f"{n / 10 ** exp:.1f} \u00d7 10{str(exp).translate(_SUP)}"

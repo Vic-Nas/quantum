@@ -61,8 +61,12 @@ def fetch_arxiv(max_results: int = 50, queries=None):
 
 def fetch_arxiv_ids(ids):
     """Fetch specific arXiv papers by id (used to build the baseline)."""
-    q = urllib.parse.urlencode({"id_list": ",".join(ids), "max_results": len(ids)})
-    return parse_arxiv(http.get("https://export.arxiv.org/api/query?" + q))
+    items = []
+    for k in range(0, len(ids), 4):  # small batches: arXiv is slow and rate limited
+        batch = ids[k:k + 4]
+        q = urllib.parse.urlencode({"id_list": ",".join(batch), "max_results": len(batch)})
+        items += parse_arxiv(http.get("https://export.arxiv.org/api/query?" + q, timeout=90))
+    return items
 
 
 def parse_eprint(xml_bytes: bytes):
@@ -124,6 +128,33 @@ def html_to_text(raw: str):
     p.feed(raw)
     lines = [re.sub(r"[ \t\u00a0]+", " ", ln).strip() for ln in "".join(p.parts).split("\n")]
     return norm(p.title), "\n".join(ln for ln in lines if ln)
+
+
+def pdf_to_text(pdf: bytes) -> str:
+    """Text of a PDF. Prefers pdftotext with layout (keeps table rows on one line), falls back to pypdf."""
+    import shutil
+    import subprocess
+    if shutil.which("pdftotext"):
+        r = subprocess.run(["pdftotext", "-layout", "-", "-"], input=pdf, capture_output=True, timeout=120)
+        if r.returncode == 0 and r.stdout.strip():
+            return r.stdout.decode("utf-8", "replace")
+    try:
+        import io
+        from pypdf import PdfReader
+        return "\n".join((pg.extract_text() or "") for pg in PdfReader(io.BytesIO(pdf)).pages)
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def fetch_fulltext(arxiv_id: str):
+    """Full text of an arXiv paper ('arxiv:2609.05625' or '2609.05625'), as one string with one text line per line, or ''."""
+    num = arxiv_id.split(":", 1)[-1]
+    try:
+        raw = pdf_to_text(http.get(f"https://arxiv.org/pdf/{num}", timeout=90))
+    except RuntimeError:
+        return ""
+    lines = [re.sub(r"[ \t\u00a0]+", " ", ln).strip() for ln in raw.replace("\f", "\n").split("\n")]
+    return "\n".join(ln for ln in lines if ln)
 
 
 def fetch_pages(sources):

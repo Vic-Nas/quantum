@@ -1,44 +1,6 @@
 [
  {
-  "id": "arxiv:2604.06319#0",
-  "kind": "attack",
-  "target": "rsa-2048",
-  "physical_qubits": 381000.0,
-  "runtime": 220.8,
-  "quote": "We then consider the factorization of 2048-bit RSA-integers; using an experimentally demonstrated grid-coupling topology, factoring RSA-2048 requires 381k physical qubits and 9.2 days, which can be reduced to 4.9 days via addition of an algorithm-specific accelerator for the Adder subroutine (requiring 439k qubits).",
-  "url": "http://arxiv.org/abs/2604.06319v2",
-  "title": "Heterogeneous architectures enable a 138x reduction in physical qubit requirements for fault-tolerant quantum computing under detailed accounting",
-  "published": "2026-04-07",
-  "added": "2026-11-09",
-  "models": {
-   "primary": "gemini-3.5-flash-lite",
-   "secondary": "gemini-3.1-flash-lite",
-   "different_family": false
-  },
-  "verification": "auto: verifier + two model families agree",
-  "regex_agrees": true
- },
- {
-  "id": "arxiv:2604.06319#1",
-  "kind": "attack",
-  "target": "rsa-2048",
-  "physical_qubits": 439000.0,
-  "runtime": 117.6,
-  "quote": "We then consider the factorization of 2048-bit RSA-integers; using an experimentally demonstrated grid-coupling topology, factoring RSA-2048 requires 381k physical qubits and 9.2 days, which can be reduced to 4.9 days via addition of an algorithm-specific accelerator for the Adder subroutine (requiring 439k qubits).",
-  "url": "http://arxiv.org/abs/2604.06319v2",
-  "title": "Heterogeneous architectures enable a 138x reduction in physical qubit requirements for fault-tolerant quantum computing under detailed accounting",
-  "published": "2026-04-07",
-  "added": "2026-11-09",
-  "models": {
-   "primary": "gemini-3.5-flash-lite",
-   "secondary": "gemini-3.1-flash-lite",
-   "different_family": false
-  },
-  "verification": "auto: verifier + two model families agree",
-  "regex_agrees": false
- },
- {
-  "id": "arxiv:1905.09749#2",
+  "id": "arxiv:1905.09749#0",
   "kind": "attack",
   "target": "rsa-2048",
   "physical_qubits": 20000000.0,
@@ -57,7 +19,100 @@
   "regex_agrees": true
  },
  {
-  "id": "arxiv:2607.13816#3",
+  "id": "arxiv:1706.06752#1",
+  "kind": "attack",
+  "target": "ecdlp-256",
+  "logical_qubits": 2330.0,
+  "quote": "For example, our simulation of the point addition quantum circuit for the NIST standardized curve P-256 needs 2330 logical qubits and the full Shor algorithm would need about 1.26 \u00b7 1011 Toffoli gates.",
+  "url": "http://arxiv.org/abs/1706.06752v3",
+  "title": "Quantum resource estimates for computing elliptic curve discrete logarithms",
+  "published": "2017-06-21",
+  "added": "2026-11-09",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemini-3.1-flash-lite",
+   "different_family": false
+  },
+  "verification": "auto: verifier + two model families agree",
+  "regex_agrees": false
+ },
+ {
+  "id": "arxiv:1706.06752#2",
+  "kind": "attack",
+  "target": "ecdlp-384",
+  "logical_qubits": 3484.0,
+  "quote": "384 3484 4.52 \u00b7 1011 4.15 \u00b7 1011 17 003",
+  "url": "http://arxiv.org/abs/1706.06752v3",
+  "title": "Quantum resource estimates for computing elliptic curve discrete logarithms",
+  "published": "2017-06-21",
+  "added": "2026-11-09",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemini-3.1-flash-lite",
+   "different_family": false
+  },
+  "verification": "auto: verifier + two model families agree",
+  "regex_agrees": false
+ },
+ {
+  "id": "arxiv:2302.06639#3",
+  "kind": "attack",
+  "target": "ecdlp-256",
+  "physical_qubits": 126133.0,
+  "runtime": 9.0,
+  "quote": "Assuming a ratio between single- and two-photon losses of 1e-5 and a cycle time of 500 ns, we show concretely that such an architecture can compute a 256-bit elliptic curve logarithm in 9 h with 126133 cat qubits and on average 19 photons by cat state.",
+  "url": "http://arxiv.org/abs/2302.06639v2",
+  "title": "Performance Analysis of a Repetition Cat Code Architecture: Computing 256-bit Elliptic Curve Logarithm in 9 Hours with 126133 Cat Qubits",
+  "published": "2023-02-13",
+  "added": "2026-11-09",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemini-3.1-flash-lite",
+   "different_family": false
+  },
+  "verification": "auto: verifier + two model families agree",
+  "regex_agrees": false
+ },
+ {
+  "id": "arxiv:2604.06319#4",
+  "kind": "attack",
+  "target": "rsa-2048",
+  "physical_qubits": 381000.0,
+  "runtime": 220.8,
+  "quote": "We then consider the factorization of 2048-bit RSA-integers; using an experimentally demonstrated grid-coupling topology, factoring RSA-2048 requires 381k physical qubits and 9.2 days, which can be reduced to 4.9 days via addition of an algorithm-specific accelerator for the Adder subroutine (requiring 439k qubits).",
+  "url": "http://arxiv.org/abs/2604.06319v2",
+  "title": "Heterogeneous architectures enable a 138x reduction in physical qubit requirements for fault-tolerant quantum computing under detailed accounting",
+  "published": "2026-04-07",
+  "added": "2026-11-09",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemini-3.1-flash-lite",
+   "different_family": false
+  },
+  "verification": "auto: verifier + two model families agree",
+  "regex_agrees": true
+ },
+ {
+  "id": "arxiv:2604.06319#5",
+  "kind": "attack",
+  "target": "rsa-2048",
+  "physical_qubits": 439000.0,
+  "runtime": 117.6,
+  "quote": "We then consider the factorization of 2048-bit RSA-integers; using an experimentally demonstrated grid-coupling topology, factoring RSA-2048 requires 381k physical qubits and 9.2 days, which can be reduced to 4.9 days via addition of an algorithm-specific accelerator for the Adder subroutine (requiring 439k qubits).",
+  "url": "http://arxiv.org/abs/2604.06319v2",
+  "title": "Heterogeneous architectures enable a 138x reduction in physical qubit requirements for fault-tolerant quantum computing under detailed accounting",
+  "published": "2026-04-07",
+  "added": "2026-11-09",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemini-3.1-flash-lite",
+   "different_family": false
+  },
+  "verification": "auto: verifier + two model families agree",
+  "regex_agrees": false
+ },
+ {
+  "id": "arxiv:2607.13816#6",
   "kind": "attack",
   "target": "ecdlp-256",
   "logical_qubits": 835.0,
@@ -72,10 +127,10 @@
    "different_family": false
   },
   "verification": "auto: verifier + two model families agree",
-  "regex_agrees": false
+  "regex_agrees": true
  },
  {
-  "id": "arxiv:2609.05625#4",
+  "id": "arxiv:2609.05625#7",
   "kind": "attack",
   "target": "ecdlp-256",
   "physical_qubits": 19397.0,
@@ -91,10 +146,10 @@
    "different_family": false
   },
   "verification": "auto: verifier + two model families agree",
-  "regex_agrees": false
+  "regex_agrees": true
  },
  {
-  "id": "arxiv:2505.15917#5",
+  "id": "arxiv:2505.15917#8",
   "kind": "attack",
   "target": "rsa-2048",
   "physical_qubits": 1000000.0,
@@ -113,7 +168,43 @@
   "regex_agrees": true
  },
  {
-  "id": "arxiv:2610.37839#6",
+  "id": "arxiv:1512.04965#9",
+  "kind": "attack",
+  "target": "aes-128",
+  "logical_qubits": 2953.0,
+  "quote": "The overall quantum resource estimates are given in Table 5. #gates depth #qubits k T Clifford T overall 128 1.19 \u00b7 286 1.55 \u00b7 286 1.06 \u00b7 280 1.16 \u00b7 281 2, 953",
+  "url": "http://arxiv.org/abs/1512.04965v1",
+  "title": "Applying Grover's algorithm to AES: quantum resource estimates",
+  "published": "2015-12-15",
+  "added": "2026-11-09",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemini-3.1-flash-lite",
+   "different_family": false
+  },
+  "verification": "auto: verifier + two model families agree",
+  "regex_agrees": false
+ },
+ {
+  "id": "arxiv:1603.09383#10",
+  "kind": "attack",
+  "target": "sha-256",
+  "logical_qubits": 2402.0,
+  "quote": "Our SHA-256 circuit has NSHA-256 = 2402 logical qubits.",
+  "url": "http://arxiv.org/abs/1603.09383v3",
+  "title": "Estimating the cost of generic quantum pre-image attacks on SHA-2 and SHA-3",
+  "published": "2016-03-30",
+  "added": "2026-11-09",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemini-3.1-flash-lite",
+   "different_family": false
+  },
+  "verification": "auto: verifier + two model families agree",
+  "regex_agrees": false
+ },
+ {
+  "id": "arxiv:2610.37839#11",
   "kind": "attack",
   "target": "rsa-2048",
   "physical_qubits": 22593.0,
@@ -129,10 +220,10 @@
    "different_family": false
   },
   "verification": "auto: verifier + two model families agree",
-  "regex_agrees": true
+  "regex_agrees": false
  },
  {
-  "id": "arxiv:2610.37839#7",
+  "id": "arxiv:2610.37839#12",
   "kind": "attack",
   "target": "ecdlp-256",
   "physical_qubits": 30000.0,
@@ -151,7 +242,26 @@
   "regex_agrees": false
  },
  {
-  "id": "arxiv:2610.37839#8",
+  "id": "arxiv:2610.37839#13",
+  "kind": "attack",
+  "target": "dlp-ff-512",
+  "physical_qubits": 6700.0,
+  "runtime": 0.35,
+  "quote": "and FFDLP-512, which we propose as an intermediate benchmark, about 6 700 cat qubits and 21 minutes.",
+  "url": "http://arxiv.org/abs/2610.37839v1",
+  "title": "Shor's algorithm compiled on cat qubits: 22 593 qubits for RSA-2048 in 3.14 days",
+  "published": "2026-10-27",
+  "added": "2026-11-09",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemini-3.1-flash-lite",
+   "different_family": false
+  },
+  "verification": "auto: verifier + two model families agree",
+  "regex_agrees": false
+ },
+ {
+  "id": "arxiv:2610.37839#14",
   "kind": "attack",
   "target": "rsa-2048",
   "physical_qubits": 611000.0,
@@ -167,10 +277,10 @@
    "different_family": false
   },
   "verification": "auto: verifier + two model families agree",
-  "regex_agrees": true
+  "regex_agrees": false
  },
  {
-  "id": "arxiv:2610.37839#9",
+  "id": "arxiv:2610.37839#15",
   "kind": "attack",
   "target": "rsa-2048",
   "physical_qubits": 45000.0,
@@ -188,15 +298,15 @@
   "regex_agrees": false
  },
  {
-  "id": "arxiv:2302.06639#10",
+  "id": "arxiv:2610.37839#16",
   "kind": "attack",
-  "target": "ecdlp-256",
-  "physical_qubits": 126133.0,
-  "runtime": 9.0,
-  "quote": "Assuming a ratio between single- and two-photon losses of 1e-5 and a cycle time of 500 ns, we show concretely that such an architecture can compute a 256-bit elliptic curve logarithm in 9 h with 126133 cat qubits and on average 19 photons by cat state.",
-  "url": "http://arxiv.org/abs/2302.06639v2",
-  "title": "Performance Analysis of a Repetition Cat Code Architecture: Computing 256-bit Elliptic Curve Logarithm in 9 Hours with 126133 Cat Qubits",
-  "published": "2023-02-13",
+  "target": "rsa-2048",
+  "physical_qubits": 23000.0,
+  "runtime": 75.36,
+  "quote": "Assuming a 1 \u00b5s error-correction cycle time, a 10 \u00b5s reaction time, circuit-level phase-flip noise with probability pZ = 5\u00d710\u22124 and no bit-flips, factoring RSA-2048, the configuration we compile in full, requires about 23 000 cat qubits and 3.14 days.",
+  "url": "http://arxiv.org/abs/2610.37839v1",
+  "title": "Shor's algorithm compiled on cat qubits: 22 593 qubits for RSA-2048 in 3.14 days",
+  "published": "2026-10-27",
   "added": "2026-11-09",
   "models": {
    "primary": "gemini-3.5-flash-lite",
@@ -205,5 +315,138 @@
   },
   "verification": "auto: verifier + two model families agree",
   "regex_agrees": false
+ },
+ {
+  "id": "arxiv:2610.37839#17",
+  "kind": "attack",
+  "target": "ecdlp-256",
+  "physical_qubits": 29588.0,
+  "runtime": 1.03,
+  "quote": "ECDLP-256 1 462 2 25.8 29 588 60 min 1.03 61.8 min",
+  "url": "http://arxiv.org/abs/2610.37839v1",
+  "title": "Shor's algorithm compiled on cat qubits: 22 593 qubits for RSA-2048 in 3.14 days",
+  "published": "2026-10-27",
+  "added": "2026-11-09",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemini-3.1-flash-lite",
+   "different_family": false
+  },
+  "verification": "auto: verifier + two model families agree",
+  "regex_agrees": false
+ },
+ {
+  "id": "arxiv:2610.37839#18",
+  "kind": "attack",
+  "target": "dlp-ff-512",
+  "physical_qubits": 6656.0,
+  "runtime": 0.353333,
+  "quote": "FFDLP-512 208 222.2 6 656 2.51 min 8.44 21.2 min",
+  "url": "http://arxiv.org/abs/2610.37839v1",
+  "title": "Shor's algorithm compiled on cat qubits: 22 593 qubits for RSA-2048 in 3.14 days",
+  "published": "2026-10-27",
+  "added": "2026-11-09",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemini-3.1-flash-lite",
+   "different_family": false
+  },
+  "verification": "auto: verifier + two model families agree",
+  "regex_agrees": false
+ },
+ {
+  "id": "arxiv:2610.37839#19",
+  "kind": "attack",
+  "target": "rsa-2048",
+  "physical_qubits": 49649.0,
+  "runtime": 6.92,
+  "quote": "RSA-2048 5\u00d710\u22124 Repetition-cat d = 15 49 649 6.92 h 1.24\u00d71015 8.08\u00d710\u221217 196 years 18.2",
+  "url": "http://arxiv.org/abs/2610.37839v1",
+  "title": "Shor's algorithm compiled on cat qubits: 22 593 qubits for RSA-2048 in 3.14 days",
+  "published": "2026-10-27",
+  "added": "2026-11-09",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemini-3.1-flash-lite",
+   "different_family": false
+  },
+  "verification": "auto: verifier + two model families agree",
+  "regex_agrees": false
+ },
+ {
+  "id": "arxiv:2610.37839#20",
+  "kind": "attack",
+  "target": "rsa-2048",
+  "physical_qubits": 55497.0,
+  "runtime": 7.22,
+  "quote": "RSA-2048 10\u22123 Repetition-cat d = 17 55 497 7.22 h 1.44\u00d71015 6.93\u00d710\u221217 228 years 18.3",
+  "url": "http://arxiv.org/abs/2610.37839v1",
+  "title": "Shor's algorithm compiled on cat qubits: 22 593 qubits for RSA-2048 in 3.14 days",
+  "published": "2026-10-27",
+  "added": "2026-11-09",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemini-3.1-flash-lite",
+   "different_family": false
+  },
+  "verification": "auto: verifier + two model families agree",
+  "regex_agrees": false
+ },
+ {
+  "id": "arxiv:2610.37839#21",
+  "kind": "attack",
+  "target": "ecdlp-256",
+  "physical_qubits": 29588.0,
+  "runtime": 1.0,
+  "quote": "ECDLP-256 5\u00d710\u22124 LDPC-cat (13, 16) 29 588 60 min 1.07\u00d71014 9.39\u00d710\u221216 16.9 years 17.0",
+  "url": "http://arxiv.org/abs/2610.37839v1",
+  "title": "Shor's algorithm compiled on cat qubits: 22 593 qubits for RSA-2048 in 3.14 days",
+  "published": "2026-10-27",
+  "added": "2026-11-09",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemini-3.1-flash-lite",
+   "different_family": false
+  },
+  "verification": "auto: verifier + two model families agree",
+  "regex_agrees": false
+ },
+ {
+  "id": "arxiv:2610.37839#22",
+  "kind": "attack",
+  "target": "dlp-ff-512",
+  "physical_qubits": 9336.0,
+  "runtime": 0.038,
+  "quote": "FFDLP-512 5\u00d710\u22124 Repetition-cat d = 11 9 336 2.28 min 1.28\u00d71012 7.84\u00d710\u221214 2.4 months 14.7",
+  "url": "http://arxiv.org/abs/2610.37839v1",
+  "title": "Shor's algorithm compiled on cat qubits: 22 593 qubits for RSA-2048 in 3.14 days",
+  "published": "2026-10-27",
+  "added": "2026-11-09",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemini-3.1-flash-lite",
+   "different_family": false
+  },
+  "verification": "auto: verifier + two model families agree",
+  "regex_agrees": false
+ },
+ {
+  "id": "arxiv:2603.28846#23",
+  "kind": "attack",
+  "target": "ecdlp-256",
+  "logical_qubits": 1200.0,
+  "runtime": 0.15,
+  "quote": "As we discuss in more detail later on, we do not expect meaningful scaling challenges between a quantum computer with 1200 logical qubits and one with 1450, so, in order to focus and simplify subsequent discussion, we assume that first-generation fast-clock CRQCs may be able to solve ECDLP on secp256k1 and similar elliptic curves in about 9 minutes on average.",
+  "url": "http://arxiv.org/abs/2603.28846v2",
+  "title": "Securing Elliptic Curve Cryptocurrencies against Quantum Vulnerabilities: Resource Estimates and Mitigations",
+  "published": "2026-03-30",
+  "added": "2026-11-09",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemini-3.1-flash-lite",
+   "different_family": false
+  },
+  "verification": "auto: verifier + two model families agree",
+  "regex_agrees": true
  }
 ]
