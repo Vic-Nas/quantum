@@ -193,27 +193,47 @@ class Build(unittest.TestCase):
 
     def countdown(self, html):
         out = []
-        for block in re.findall(r'<button class="row[^"]*".*?</button>', html, re.S):
+        for block in re.findall(r'<a class="row[^"]*".*?</a>', html, re.S):
             title = re.search(r"<strong>(.*?)</strong>", block).group(1)
             year = re.search(r"<b>(.*?)</b>", block) or re.search(r'class="safe">(.*?)<', block)
             out.append((title, year.group(1) if year else ""))
         return out
 
-    def test_side_nav_with_detail_panels(self):
+    def test_multi_page_structure(self):
+        out = self.build(ROWS, STATUS, hw=HW)
+        self.assertTrue((out / "index.html").exists())
+        self.assertTrue((out / "research" / "index.html").exists())
+        self.assertTrue((out / "hardware" / "index.html").exists())
+        self.assertTrue((out / "chart" / "index.html").exists())
+        self.assertTrue((out / "threats" / "bitcoin" / "index.html").exists())
+        self.assertTrue((out / "threats" / "websites" / "index.html").exists())
+
+    def test_nav_on_every_page(self):
+        out = self.build(ROWS, STATUS, hw=HW)
+        for page in ("index.html", "research/index.html", "hardware/index.html", "chart/index.html"):
+            html = (out / page).read_text()
+            self.assertIn('class="top-nav"', html)
+            self.assertIn('>Home<', html)
+            self.assertIn('>Research<', html)
+
+    def test_home_has_countdown_and_card_grid(self):
         out = self.build(ROWS, STATUS, hw=HW)
         html = (out / "index.html").read_text()
-        self.assertIn('class="d-nav"', html)
-        self.assertIn('class="d-panels"', html)
-        self.assertIn('class="detail active"', html)
-        self.assertIn("Where you meet it", html)
-        self.assertIn("If it breaks", html)
-        self.assertIn("The cheapest published attack needs", html)
-        self.assertIn("Read the paper", html)
-        self.assertNotIn('role="dialog"', html)
-        nav_tabs = re.findall(r'data-tab="([^"]+)"', html)
-        panel_ids = re.findall(r'<section class="detail[^"]*" id="([^"]+)"', html)
-        for pid in panel_ids:
-            self.assertIn(pid, nav_tabs)
+        self.assertIn('class="cd"', html)
+        self.assertIn('class="threat-card"', html)
+        self.assertIn('View details', html)
+        self.assertNotIn('class="d-nav"', html)
+        self.assertNotIn('class="d-panels"', html)
+
+    def test_countdown_links_to_threat_pages(self):
+        out = self.build(ROWS, STATUS, hw=HW)
+        html = (out / "index.html").read_text()
+        hrefs = re.findall(r'<a class="row[^"]*" href="([^"]+)"', html)
+        self.assertTrue(hrefs)
+        for href in hrefs:
+            self.assertTrue(href.startswith("threats/"))
+            page_path = out / href / "index.html"
+            self.assertTrue(page_path.exists(), f"Missing threat page: {href}")
 
     def test_front_page_answers_the_bitcoin_question_first(self):
         proxy = row("2610.37839", "dlp-ff-512", "2026-10-27", physical_qubits=6656.0)
@@ -225,24 +245,51 @@ class Build(unittest.TestCase):
         self.assertEqual(dict(rows)["Older VPN and SSH setups"], "2027 or later")
         self.assertEqual(dict(rows)["Disk encryption and passwords"], "Safe in practice")
 
-    def test_countdown_rows_activate_detail_panels(self):
-        html = (self.build(ROWS, STATUS, hw=HW) / "index.html").read_text()
-        cd_tabs = re.findall(r'<button class="row[^"]*" data-tab="([^"]+)"', html)
-        self.assertTrue(cd_tabs)
-        for tab_id in cd_tabs:
-            self.assertIn(f'id="{tab_id}"', html)
+    def test_threat_page_content(self):
+        out = self.build(ROWS, STATUS, hw=HW)
+        html = (out / "threats" / "bitcoin" / "index.html").read_text()
+        self.assertIn("Bitcoin, Ethereum and crypto wallets", html)
+        self.assertIn("19,397 physical qubits", html)
+        self.assertIn("Read the paper", html)
+        self.assertIn("Where you meet it", html)
+        self.assertIn("If it breaks", html)
+        self.assertIn("Published estimates", html)
+        self.assertIn("All threats", html)
 
-    def test_tech_chart_collapsed_by_default(self):
-        html = (self.build(ROWS, STATUS, hw=HW) / "index.html").read_text()
-        self.assertIn('<details class="tech">', html)
+    def test_threat_page_has_hardware_section(self):
+        out = self.build(ROWS, STATUS, hw=HW)
+        html = (out / "threats" / "bitcoin" / "index.html").read_text()
+        self.assertIn("Hardware that could deliver", html)
+        self.assertIn("IonQ", html)
+
+    def test_research_page_lists_all_papers(self):
+        out = self.build(ROWS, STATUS, hw=HW)
+        html = (out / "research" / "index.html").read_text()
+        self.assertIn("Published attack estimates", html)
+        self.assertIn("256-bit elliptic curve", html)
+        self.assertIn("RSA-2048", html)
+        for r in ROWS:
+            self.assertIn(r["url"], html)
+
+    def test_hardware_page_shows_vendors(self):
+        out = self.build(ROWS, STATUS, hw=HW)
+        html = (out / "hardware" / "index.html").read_text()
+        self.assertIn("Hardware roadmaps", html)
+        self.assertIn("IonQ", html)
+
+    def test_chart_page_has_full_chart(self):
+        out = self.build(ROWS, STATUS, hw=HW)
+        html = (out / "chart" / "index.html").read_text()
         self.assertIn("Technical overview", html)
         self.assertEqual(html.count('class="tl ov"'), 2)
+        self.assertNotIn("<details", html)
 
-    def test_page_is_short_by_construction(self):
-        html = (self.build(ROWS, STATUS, hw=HW) / "index.html").read_text()
-        self.assertLessEqual(len(self.countdown(html)), 6)
-        self.assertNotIn("<table", html)
-        self.assertEqual(html.count("<h1"), 1)
+    def test_safe_threat_page_has_no_source(self):
+        out = self.build(ROWS, STATUS, hw=HW)
+        html = (out / "threats" / "disk-encryption" / "index.html").read_text()
+        self.assertNotIn("Read the paper", html)
+        self.assertIn("Where you meet it", html)
+        self.assertIn("Safe in practice", html)
 
     def test_card_tags(self):
         out = self.build(ROWS, STATUS, hw=HW)
@@ -267,11 +314,13 @@ class Build(unittest.TestCase):
     def test_hostile_text_is_escaped_and_dashes_removed(self):
         bad = dict(ROWS[2], title='<img src=x onerror=alert(1)> "t" — x', quote="<script>alert(1)</script> fast — but")
         out = self.build([bad] + ROWS[:2], STATUS, hw=HW)
-        html = (out / "index.html").read_text()
-        self.assertNotIn("<script>alert", html)
-        self.assertNotIn("<img src=x", html)
-        self.assertNotIn("—", html)
-        self.assertIn("fast; but", html)
+        home = (out / "index.html").read_text()
+        self.assertNotIn("<script>alert", home)
+        self.assertNotIn("<img src=x", home)
+        self.assertNotIn("—", home)
+        threat = (out / "threats" / "bitcoin" / "index.html").read_text()
+        self.assertNotIn("<script>alert", threat)
+        self.assertIn("fast; but", threat)
 
     def test_served_data_has_no_em_dash_but_input_is_untouched(self):
         em = "—"
@@ -284,7 +333,8 @@ class Build(unittest.TestCase):
 
     def test_a_queued_paper_is_described_as_waiting_not_unconfirmed(self):
         cands = [{"id": "arxiv:9.9", "tier": "B", "url": "https://arxiv.org/abs/9.9", "title": "queued paper", "reason": "second opinion"}]
-        html = (self.build(ROWS, STATUS, cands=cands, hw=HW, queue={"arxiv:9.9@seed": {"item": {}, "attempts": 1}}) / "index.html").read_text()
+        out = self.build(ROWS, STATUS, cands=cands, hw=HW, queue={"arxiv:9.9@seed": {"item": {}, "attempts": 1}})
+        html = (out / "research" / "index.html").read_text()
         self.assertIn("1 paper is waiting to be re-checked", html)
         self.assertNotIn(">queued paper<", html)
 
@@ -294,22 +344,28 @@ class Build(unittest.TestCase):
         self.assertIn("The last update had a problem", bad)
         self.assertIn('role="alert"', bad)
 
-    def test_safe_detail_card_has_no_source(self):
-        crows = site.countdown_rows(site.chart_lines(ROWS, HW))
-        safe = [c for c in crows if c["safe"]]
-        self.assertTrue(safe)
-        card = site.detail_card(safe[0])
-        self.assertNotIn("Read the paper", card)
-        self.assertIn("Where you meet it", card)
-        self.assertIn("Safe in practice", card)
-
-    def test_month_precision_in_detail(self):
+    def test_month_precision_in_threat_page(self):
         hw_month = [dict(HW[2], target_month=6)]
-        crows = site.countdown_rows(site.chart_lines(ROWS, hw_month))
-        for crow in crows:
-            card = site.detail_card(crow)
-            if crow["year"] == 2028:
-                self.assertIn("Jun 2028", card)
+        out = self.build(ROWS, STATUS, hw=hw_month)
+        html = (out / "threats" / "bitcoin" / "index.html").read_text()
+        self.assertIn("Jun 2028", html)
+
+    def test_progress_chart_on_threat_page(self):
+        extra = row("2302.06639", "ecdlp-256", "2023-02-13", physical_qubits=126133.0, runtime=9.0)
+        out = self.build(ROWS + [extra], STATUS, hw=HW)
+        html = (out / "threats" / "bitcoin" / "index.html").read_text()
+        self.assertIn('class="prog"', html)
+        self.assertIn("<svg", html)
+        self.assertIn("How estimates have improved", html)
+
+    def test_inner_page_og_tags(self):
+        out = self.build(ROWS, STATUS, hw=HW)
+        t = Tags()
+        t.feed((out / "research" / "index.html").read_text())
+        self.assertIn("Research", t.meta["og:title"])
+        t2 = Tags()
+        t2.feed((out / "threats" / "bitcoin" / "index.html").read_text())
+        self.assertIn("Bitcoin", t2.meta["og:title"])
 
 
 if __name__ == "__main__":

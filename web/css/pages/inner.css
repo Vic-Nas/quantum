@@ -1,0 +1,102 @@
+/* Inner pages: threat details, research, hardware, chart. */
+
+/* Back link */
+.back{display:inline-block;margin:12px 0 4px;font-size:13px;color:var(--ink-dim)}
+.back:hover{color:var(--link)}
+
+/* Threat hero */
+.t-hero{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+.t-hero h1{margin:0;font-size:clamp(22px,2.5vw,30px);font-weight:650;letter-spacing:-.02em}
+.t-what{margin:4px 0 0;color:var(--ink-dim);font-size:14px}
+.t-summary{font-size:15px;line-height:1.55;margin:0 0 16px}
+.t-summary strong{font-weight:700}
+.t-section{margin:28px 0 0}
+.t-section h2{margin:0 0 10px;font-size:16px;font-weight:650;letter-spacing:-.01em}
+.r-section{margin:24px 0 0}
+.r-section h2{margin:0 0 10px;font-size:16px;font-weight:650;letter-spacing:-.01em}
+
+/* Badges */
+.d-badge{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.d-badge.dated{font-size:22px;color:var(--accent)}
+.d-badge.warn{font-size:18px;color:var(--accent);opacity:.75}
+.d-badge.safe{font-size:14px;color:var(--ok);padding:3px 12px;border-radius:999px;background:rgb(29 122 62/.10)}
+
+/* Source paper card */
+.d-source{margin:14px 0 0;padding:14px 16px;background:var(--panel);border-radius:var(--radius-sm)}
+.d-source .d-kicker{margin:0 0 4px;font-size:12px;color:var(--ink-dim)}
+.d-source h3{margin:0 0 10px;font-size:14.5px;line-height:1.35;font-weight:650}
+.d-source blockquote{margin:0;padding:10px 12px;background:var(--surface);border-left:3px solid var(--accent);border-radius:0 var(--radius-sm) var(--radius-sm) 0;font-size:13px;line-height:1.55}
+.d-source .read{display:inline-block;margin-top:10px;font-size:13px;font-weight:600}
+
+/* Impact grid */
+.d-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 24px}
+h4{margin:0 0 5px;font-size:12px;font-weight:650;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.04em}
+.d-grid ul{margin:0;padding-left:16px;font-size:13.5px;line-height:1.55}
+.d-grid li{margin:0 0 4px}
+.d-note{margin:10px 0 0;font-size:12px;color:var(--ink-dim)}
+
+/* Paper cards */
+.paper-card{padding:14px 16px;background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius)}
+.pc-head{display:flex;align-items:center;gap:10px;margin-bottom:6px;font-size:12px;color:var(--ink-dim)}
+.pc-target{padding:1px 6px;border-radius:4px;background:rgb(var(--ink-rgb)/.06);font-size:11px;font-weight:600}
+.pc-metrics{font-size:13px;color:var(--ink-dim);margin:4px 0 0}
+.paper-card h3{margin:0;font-size:14.5px;font-weight:600;line-height:1.35}
+.paper-card h3 a{color:var(--ink)}
+.paper-card h3 a:hover{color:var(--link)}
+
+/* Vendor cards */
+.vendor-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin:16px 0}
+.vendor-card{padding:16px 18px;background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);box-shadow:var(--shadow)}
+.vendor-card h3{margin:0 0 12px;font-size:16px;font-weight:650}
+.rm-timeline{display:flex;flex-direction:column}
+.rm-step{display:flex;justify-content:space-between;padding:8px 0;border-top:1px solid var(--rule);font-size:13.5px}
+.rm-year{font-weight:650;font-variant-numeric:tabular-nums}
+.rm-qubits{color:var(--ink-dim);text-align:right}
+.rm-source{display:inline-block;margin-top:10px;font-size:13px;font-weight:600}
+
+/* Progress chart */
+.prog{width:100%;height:auto;max-height:220px}
+
+/* Chart page */
+.chartwrap{margin-top:10px;background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 10px 8px}
+.tl-narrow{display:none}
+.tl{display:block;width:100%;height:auto;overflow:visible}
+.tl .grid{stroke:rgb(var(--ink-rgb)/.07);stroke-width:1}
+.tl .area{fill:rgb(194 87 12/.07);stroke:none}
+.tl .ax{fill:var(--ink-dim);font:12px var(--sans)}
+.tl .today{stroke:var(--ink-dim);stroke-width:1;stroke-dasharray:3 3}
+.tl .stair{stroke-width:2.4;stroke-linejoin:round;stroke-linecap:round;stroke:var(--accent)}
+.tl .stair.log{stroke-width:1.8;stroke-dasharray:1 6}
+.tl .atk{cursor:pointer;outline:none}
+.tl .atk .hit{stroke:transparent;stroke-width:18}
+.tl .need{stroke:rgb(var(--ink-rgb)/.78);stroke-width:1.5;stroke-linecap:round}
+.tl .need.logi{stroke-dasharray:8 5}
+.tl .need.weak{stroke:rgb(var(--ink-rgb)/.38);stroke-width:1.2}
+.tl .lead{stroke:var(--line-strong);stroke-width:1}
+.tl .nm{fill:var(--ink);font:650 13px var(--sans)}
+.tl .sb{fill:var(--ink-dim);font:12px var(--sans)}
+.tl .atk:hover .need,.tl .atk:focus-visible .need,.tl .atk.is-sel .need{stroke:var(--accent);stroke-width:2.6}
+.tl .atk:hover .nm,.tl .atk.is-sel .nm{fill:var(--accent)}
+.tl .halo{fill:var(--surface);stroke:none;pointer-events:none}
+.tl .cross{fill:var(--surface);stroke:var(--accent);stroke-width:2.6;pointer-events:none}
+.tl .dot{cursor:pointer;outline:none}
+.tl .dot .hit{fill:transparent}
+.tl .dot .pt{fill:var(--surface);stroke:var(--accent);stroke-width:2;transition:fill .12s,r .12s}
+.tl .dot.rec .pt{fill:var(--accent)}
+.tl .dot.log .pt{stroke-width:1.6}
+.tl .dot:hover .pt,.tl .dot:focus-visible .pt,.tl .dot.is-sel .pt{fill:var(--ink);stroke:var(--ink);r:8}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin:8px 8px 6px;font-size:12.5px;color:var(--ink-dim)}
+.legend .li{display:inline-flex;align-items:center;gap:7px}
+.legend .k{display:inline-block;width:22px;height:0;border-top:2.2px solid var(--accent)}
+.legend .k.dashed{border-top-style:dashed}
+.legend .k.need{border-top:2px solid var(--ink)}
+.legend .k.ring{width:11px;height:11px;border:2px solid var(--accent);border-radius:50%}
+
+/* Radar (research page) */
+.radar{margin-top:26px}.radar summary{cursor:pointer;color:var(--ink-dim)}.radar ul{padding-left:18px}
+
+@media (max-width:900px){
+  .d-grid{grid-template-columns:1fr}
+  .d-grid>div+div{margin-top:10px}
+  .tl-wide{display:none}.tl-narrow{display:block}
+}
