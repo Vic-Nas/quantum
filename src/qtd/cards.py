@@ -14,21 +14,28 @@ def _sentence(rows, target):
     h = headline(rows, target)
     if not h:
         return ""
-    name = label(target)[0]
+    name = TARGET_SHARE[target] if target in TARGET_SHARE else label(target)[0]
     now = short_count(h["best"]["y"])
     if h["first"] is h["best"]:
-        return f"{name} needs {now} qubits"
-    return (f"{name} needed {short_count(h['first']['y'])} qubits in {date_label(h['first']['date'], True)[-4:]}"
-            f" and now {now}")
+        return f"{name}: {now} qubits needed"
+    return f"{name}: {short_count(h['first']['y'])} \u2192 {now} qubits since {date_label(h['first']['date'], True)}"
 
 
-def home_card(rows, as_of, base_url):
+TARGET_SHARE = {"ecdlp-256": "Bitcoin and Ethereum keys", "rsa-2048": "RSA-2048 (websites, software updates)"}
+
+
+def home_card(rows, as_of, base_url, image_url=None):
     """Card for the home page. as_of is a date string like 2026-11-09 or ''."""
     parts = [s for s in (_sentence(rows, t) for t in TARGET_ORDER) if s]
-    when = f" (as of {clean(as_of, 10)})" if as_of else ""
-    desc = ("; ".join(parts) + f", by published estimates{when}.") if parts else "No estimates published yet."
-    return {"title": TITLE, "description": clean(desc, 250), "url": base_url, "type": "website",
+    when = f" As of {clean(as_of, 10)}." if as_of else ""
+    desc = ("Published estimates of the quantum computer size needed. " + ". ".join(parts) + "." + when) if parts \
+        else "No estimates published yet."
+    card = {"title": TITLE, "description": clean(desc, 250), "url": base_url, "type": "website",
             "image": None, "site_name": SITE_NAME, "theme_color": "#f4f1ea"}
+    if image_url:
+        card.update(image=image_url, image_width=1200, image_height=630,
+                    image_alt="Qubits needed to break Bitcoin-grade keys and RSA-2048, then and now")
+    return card
 
 
 def default_card(base_url):

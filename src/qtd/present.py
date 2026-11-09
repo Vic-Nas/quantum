@@ -132,4 +132,42 @@ TARGET_PLAIN = {
     "rsa-2048": "Protects secure websites, software updates and older encrypted email.",
     "ecdlp-256": "Signs Bitcoin and Ethereum transactions. Also used by secure web connections, SSH, Signal and WireGuard.",
 }
-TARGET_ORDER = ["rsa-2048", "ecdlp-256"]
+TARGET_ORDER = ["ecdlp-256", "rsa-2048"]
+
+
+# What people recognise, and the technical name underneath.
+TARGET_NAMES = {
+    "ecdlp-256": ("Bitcoin, Ethereum and secure logins", "256-bit elliptic curves"),
+    "rsa-2048": ("Websites and software updates", "RSA-2048"),
+}
+# Hand-written (not extracted): what each algorithm protects and what a break would mean.
+SECURES = {
+    "ecdlp-256": [
+        ("Bitcoin and Ethereum",
+         "Owning coins means holding a private key. Breaking the curve lets an attacker work out that key from its public key "
+         "and move the coins. The most exposed coins are those whose public key is already visible on the blockchain."),
+        ("Secure connections, SSH and messaging",
+         "TLS, SSH, Signal and WireGuard use these curves. Traffic recorded today could be decrypted later, and logins or "
+         "identities could be forged. Many of them have started adding post-quantum protection."),
+    ],
+    "rsa-2048": [
+        ("Websites (HTTPS certificates)",
+         "A certificate proves a site is the real one. A broken key would let an attacker build fake sites that browsers trust."),
+        ("Software updates and signed code",
+         "Updates are signed so devices can trust them. A broken key would let malicious software look official."),
+        ("Older encrypted email and files",
+         "Messages encrypted with RSA and recorded today could be read once the key can be broken."),
+    ],
+}
+SECURES_NOTE = "Replacements exist: NIST standardised post-quantum schemes in 2024. The risk is systems that have not switched yet."
+
+
+def plain_reason(reason: str) -> str:
+    r = str(reason or "")
+    if "second model" in r or "second opinion" in r:
+        return "A second AI model could not confirm the numbers."
+    if "failed verification" in r:
+        return "A number or quote did not match the paper's text."
+    if "models unavailable" in r:
+        return "The AI models were unavailable when it was checked."
+    return clean(r, 120)

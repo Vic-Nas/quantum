@@ -53,6 +53,11 @@ def process(item: dict, rows: list, use_llm: bool) -> dict:
         v2 = _verified(ex2, item)
         rec["trail"]["secondary"] = {"model": m2, "extraction": ex2, "estimates": v2["estimates"]}
     independent = bool(m2) and llm.family(m1) != llm.family(m2)
+    unconfirmed = [e for e in needs if not (v2 and any_agrees(e["values"], v2["ok_estimates"]))]
+    if m2 and m2 != llm.CHAINS["secondary"][0] and unconfirmed:
+        # The second opinion came from a fallback model. Do not demote a good row for good because the
+        # preferred model was down; the queue retries it on a later run.
+        raise llm.LLMError(f"second opinion came from fallback model {m2}, retrying later")
     for e in v1["estimates"]:
         second = independent and e["ok"] and any_agrees(e["values"], v2["ok_estimates"] if v2 else [])
         tier, why = router.route(v1["kind"], e["ok"], e["values"], second, rows)

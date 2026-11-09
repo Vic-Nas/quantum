@@ -7,9 +7,9 @@ import shutil
 import sys
 from pathlib import Path
 
-from . import cards, chart
-from .present import (TARGET_ORDER, TARGET_PLAIN, clean, count, date_label, dom_id, duration, headline, label,
-                      paper_id, series, short_count)
+from . import cardimg, cards, chart
+from .present import (SECURES, SECURES_NOTE, TARGET_NAMES, TARGET_ORDER, clean, count, date_label, dom_id, duration, headline,
+                      label, paper_id, plain_reason, series, short_count)
 
 WEB = Path("web")
 DEFAULT_URL = "https://vic-nas.github.io/quantum/"
@@ -33,10 +33,14 @@ def head(card, css_hrefs):
          f'<meta property="og:title" content="{e(card["title"])}">',
          f'<meta property="og:description" content="{e(card["description"])}">',
          f'<meta property="og:url" content="{e(card["url"])}">',
-         '<meta name="twitter:card" content="summary">',
-         f'<meta name="theme-color" content="{e(card["theme_color"])}">']
+         f'<meta name="twitter:card" content="{"summary_large_image" if card.get("image") else "summary"}">',
+         f'<meta name="theme-color" content="{e(card["theme_color"])}">',
+         '<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">']
     if card.get("image"):
-        t.append(f'<meta property="og:image" content="{e(card["image"])}">')
+        t += [f'<meta property="og:image" content="{e(card["image"])}">',
+              f'<meta property="og:image:width" content="{card["image_width"]}">',
+              f'<meta property="og:image:height" content="{card["image_height"]}">',
+              f'<meta property="og:image:alt" content="{e(card["image_alt"])}">']
     t += [f'<link rel="stylesheet" href="{e(h)}">' for h in css_hrefs]
     return "\n".join(t)
 
@@ -83,17 +87,22 @@ def target_section(rows, target):
         also_html = ('<p class="also"><span>Also published, not on the chart (counts error-corrected qubits only):</span> ' + " ".join(
             f'<a href="#{dom_id(r["id"])}" data-id="{dom_id(r["id"])}">{e(count(r["logical_qubits"]))} logical, {e(date_label(r.get("published", ""), True))}</a>'
             for r in also if r.get("logical_qubits") is not None) + "</p>")
-    return (f'<section class="target" id="t-{e(target)}"><header><h2>{e(name)}</h2><p>{e(TARGET_PLAIN.get(target, ""))}</p></header>'
-            f'<div class="viz">{charts}<aside class="proofs" aria-live="polite">{proofs}</aside></div>{also_html}</section>')
+    secures = "".join(f"<li><strong>{e(a)}</strong><span>{e(b)}</span></li>" for a, b in SECURES.get(target, []))
+    secures_html = (f'<div class="protects"><h3>What this protects, and what happens if it breaks</h3><ul>{secures}</ul>'
+                    f'<p class="dim">{e(SECURES_NOTE)}</p></div>') if secures else ""
+    pname, tech = TARGET_NAMES.get(target, (name, name))
+    return (f'<section class="target" id="t-{e(target)}" role="tabpanel" aria-labelledby="tab-{e(target)}">'
+            f'<header><h2>{e(pname)}</h2><p>Secured by {e(tech)}. Each dot is a published estimate of the quantum computer size needed to break it.</p></header>'
+            f'<div class="viz">{charts}<aside class="proofs" aria-live="polite">{proofs}</aside></div>{also_html}{secures_html}</section>')
 
 
 def tiles(rows, targets):
     out = []
-    for t in targets:
+    for n, t in enumerate(targets):
         h = headline(rows, t)
+        pname, tech = TARGET_NAMES.get(t, label(t))
         if not h:
             continue
-        name, _ = label(t)
         now = short_count(h["best"]["y"])
         if h["first"] is not h["best"]:
             nums = (f'<span class="was">{e(short_count(h["first"]["y"]))}</span><span class="arrow" aria-label="down to">&rarr;</span>'
@@ -102,29 +111,30 @@ def tiles(rows, targets):
                    f' ({h["drop_pct"]:g}% smaller)')
         else:
             nums, cap = f'<span class="now">{e(now)}</span>', f'qubits needed, {e(date_label(h["best"]["date"], True))}'
-        out.append(f'<a class="hl" href="#t-{e(t)}"><span class="what">{e(name)}</span><span class="nums">{nums}</span>'
-                   f'<span class="cap">{cap}</span></a>')
+        out.append(f'<a class="hl{" is-active" if n == 0 else ""}" id="tab-{e(t)}" role="tab" href="#t-{e(t)}" data-tab="t-{e(t)}" '
+                   f'aria-selected="{"true" if n == 0 else "false"}"><span class="what">{e(pname)}</span><span class="tech">{e(tech)}</span>'
+                   f'<span class="nums">{nums}</span><span class="cap">{cap}</span></a>')
     return "".join(out)
 
 
 def radar_rows(path):
-    """Tier B items from the audit trail: found but not confirmed. Never affects the numbers."""
-    out = []
+    """Papers whose latest outcome is Tier B (found, not confirmed). One line per paper; never affects the charts."""
+    latest = {}
     if not path.exists():
-        return out
-    for f in sorted(path.glob("*.jsonl"), reverse=True):
-        for line in reversed(f.read_text().splitlines()):
+        return []
+    for f in sorted(path.glob("*.jsonl")):
+        for line in f.read_text().splitlines():
             r = json.loads(line)
-            if r.get("tier") == "B":
-                out.append(r)
-    return out[:25]
+            latest[r.get("id") or r.get("url", "")] = r
+    return [r for r in latest.values() if r.get("tier") == "B"][:25]
 
 
 def build(out="site", data="data"):
     out, data = Path(out), Path(data)
     shutil.rmtree(out, ignore_errors=True)
     (out / "data").mkdir(parents=True)
-    shutil.copytree(WEB / "fonts", out / "assets" / "fonts")
+    shutil.copytree(WEB / "fonts", out / "assets" / "fonts", ignore=shutil.ignore_patterns("*.ttf"))
+    shutil.copy(WEB / "favicon.svg", out / "assets" / "favicon.svg")
     for sub in ("css/pages", "js"):
         (out / "assets" / sub).mkdir(parents=True)
     hrefs, scripts = [], []
@@ -139,7 +149,8 @@ def build(out="site", data="data"):
     rows = json.loads((out / "data" / "attacks.json").read_text())
     st = json.loads((data / "status.json").read_text()) if (data / "status.json").exists() else {}
     as_of = (st.get("run_at") or "")[:10]
-    card = cards.home_card(rows, as_of, base_url())
+    has_img = cardimg.render(rows, as_of, out / "assets" / "card.png", WEB / "fonts", base_url().split("//", 1)[-1].rstrip("/"))
+    card = cards.home_card(rows, as_of, base_url(), base_url() + "assets/card.png" if has_img else None)
     gate_ok = (st.get("gate") or {}).get("ok", True)
     problems = list((st.get("source_errors") or {}).items())
     alert = ""
@@ -150,30 +161,31 @@ def build(out="site", data="data"):
     radar = radar_rows(data / "candidates")
     radar_html = ""
     if radar:
-        radar_html = (f'<details class="radar"><summary>Found but not confirmed ({len(radar)})</summary><p class="dim">These never '
-                      "change the charts. They are listed so nothing is hidden.</p><ul>" + "".join(
-                          f'<li><a href="{e(r["url"])}">{e(clean(r["title"], 100))}</a> <span class="dim">{e(clean(r.get("reason"), 120))}</span></li>'
+        radar_html = (f'<details class="radar"><summary>Found but not confirmed ({len(radar)})</summary><p class="dim">Nothing is waiting on these. '
+                      "They never change the charts and stay listed so nothing is hidden.</p><ul>" + "".join(
+                          f'<li><a href="{e(r["url"])}">{e(clean(r["title"], 100))}</a> <span class="dim">{e(plain_reason(r.get("reason")))}</span></li>'
                           for r in radar) + "</ul></details>")
     body = "".join(target_section(rows, t) for t in present) if rows else (
         '<p class="empty">No verified estimates yet. The first update has not stored any.</p>')
     updated = date_label(as_of) or "not yet"
     page = f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<script>document.documentElement.className+=" js"</script>
 {head(card, hrefs)}
 </head><body>
-<header class="bar"><span class="brand">Quantum threat tracker</span><span class="upd">Updated {e(updated)}</span></header>
+<header class="bar"><span class="brand"><img src="assets/favicon.svg" alt="" width="22" height="22">Quantum threat tracker</span><span class="upd">Updated {e(updated)}</span></header>
 <main class="page">
 <section class="hero"><h1>How close is quantum computing to breaking today's encryption?</h1>
 <p class="lede">Today's security holds because nobody can build a big enough quantum computer. Researchers keep publishing smaller
-designs. Each dot below is one of those papers, showing how many qubits it says would be needed. Lower means closer. Click a dot to read the paper's own words.</p>
-<div class="hls">{tiles(rows, present)}</div></section>
+designs. Pick what you care about, then click any dot to read the paper's own words.</p>
+<div class="hls" role="tablist" aria-label="What to look at">{tiles(rows, present)}</div></section>
 {alert}{body}
 <section class="notes"><h2>How to read this</h2>
 <dl><div><dt>Qubit</dt><dd>The basic unit of a quantum computer, like a bit in an ordinary one. Breaking encryption takes many of them working together.</dd></div>
 <div><dt>Physical vs. error-corrected</dt><dd>A physical qubit is one real piece of hardware. Error-corrected (logical) qubits are built from many physical ones, so they are not comparable with the charted numbers.</dd></div>
 <div><dt>Not a countdown</dt><dd>This shows how big a machine would have to be. It does not yet track how big machines are today, so it cannot say when. Each paper assumes its own kind of hardware, so look at the trend and not at exact comparisons.</dd></div></dl></section>
 {radar_html}
-<footer><span>Every figure is a sentence quoted from the paper and checked against its text.</span><a href="data/attacks.json">Raw data</a></footer>
+<footer><span>Figures are sentences quoted from each paper and checked against its text. The descriptions of what each algorithm protects are written by hand.</span><a href="data/attacks.json">Raw data</a></footer>
 </main>{"".join(f'<script src="{e(s)}" defer></script>' for s in scripts)}</body></html>"""
     (out / "index.html").write_text(page)
     return out

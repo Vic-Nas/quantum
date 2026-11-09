@@ -50,7 +50,8 @@ class Pipeline(unittest.TestCase):
         self.assertIn("rsa", row["quote"].lower())
 
     def test_same_family_is_not_enough(self):
-        with mock.patch.object(llm, "call_chain", fake_chain(same_family=True)):
+        with mock.patch.object(llm, "call_chain", fake_chain(same_family=True)), \
+                mock.patch.dict(llm.CHAINS, {"secondary": ["gemini-3.1-flash-lite"]}):
             r = pipeline.run(items=[item()])
         self.assertEqual((r["counts"]["A"], r["counts"]["B"], r["auto_applied"]), (0, 1, 0))
 
@@ -78,6 +79,19 @@ class Pipeline(unittest.TestCase):
             for _ in range(pipeline.MAX_ATTEMPTS):
                 r = pipeline.run(items=[item(2)])
         self.assertEqual((r["counts"]["gave_up"], r["queue_size"]), (1, 0))
+
+    def test_fallback_second_opinion_is_retried_not_final(self):
+        # secondary came from a fallback model (not the chain's first choice) and did not confirm
+        def chain(role, fn):
+            if role == "coarse":
+                return {"relevant": True, "reason": "x"}, "gemma-4-26b-a4b-it"
+            if role == "primary":
+                return fake_chain()("primary", fn)
+            return {"kind": "attack", "estimates": []}, llm.CHAINS["secondary"][1]
+        with mock.patch.object(llm, "call_chain", chain):
+            r = pipeline.run(items=[item()])
+        self.assertEqual((r["counts"]["retry"], r["queue_size"], r["counts"]["B"]), (1, 1, 0))
+        self.assertEqual(self.read("seen.json"), [])
 
     def test_dry_run_writes_nothing(self):
         with mock.patch.object(llm, "call_chain", fake_chain()):

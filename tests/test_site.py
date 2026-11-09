@@ -91,8 +91,11 @@ class Chart(unittest.TestCase):
 class Cards(unittest.TestCase):
     def test_home_card(self):
         c = cards.home_card(ROWS, "2026-11-09", "https://example.com/q/")
-        self.assertIn("RSA-2048 needed 20 million qubits in 2019 and now 45,000", c["description"])
-        self.assertIn("as of 2026-11-09", c["description"])
+        self.assertIn("RSA-2048 (websites, software updates): 20 million \u2192 45,000 qubits since May 2019", c["description"])
+        self.assertIn("Bitcoin and Ethereum keys", c["description"])
+        self.assertIn("As of 2026-11-09", c["description"])
+        img = cards.home_card(ROWS, "2026-11-09", "https://example.com/q/", "https://example.com/q/assets/card.png")
+        self.assertEqual((img["image"], img["image_width"], img["image_height"]), ("https://example.com/q/assets/card.png", 1200, 630))
         self.assertTrue(c["url"].startswith("https://"))
         self.assertLessEqual(len(c["description"]), 250)
         self.assertLessEqual(len(c["title"]), 60)
@@ -138,14 +141,26 @@ class Build(unittest.TestCase):
         t = Tags()
         t.feed(html)
         self.assertEqual(t.meta["og:title"], cards.TITLE)
-        self.assertIn("20 million qubits in 2019", t.meta["og:description"])
+        self.assertIn("20 million", t.meta["og:description"])
         self.assertTrue(t.meta["og:url"].startswith("https://"))
-        self.assertEqual(t.meta["twitter:card"], "summary")
-        self.assertNotIn("og:image", t.meta)  # image choice is the owner's decision
+        self.assertEqual(t.meta["twitter:card"], "summary_large_image")
+        self.assertTrue(t.meta["og:image"].startswith("https://") and t.meta["og:image"].endswith("/assets/card.png"))
+        self.assertEqual((t.meta["og:image:width"], t.meta["og:image:height"]), ("1200", "630"))
+        self.assertTrue(t.meta["og:image:alt"])
+        png = (out / "assets" / "card.png").read_bytes()
+        self.assertEqual(png[:8], b"\x89PNG\r\n\x1a\n")
+        self.assertEqual(int.from_bytes(png[16:20], "big"), 1200)
         self.assertRegex(html, r"assets/css/base\.css\?v=[0-9a-f]{10}")
         self.assertEqual(html.count('class="dot'), 8)  # 3 + 3 (wide and narrow) + 1 + 1
         self.assertIn('class="proof is-sel"', html)
         self.assertNotIn("<nav", html)  # no navigation bar
+        self.assertEqual(html.count('role="tab"'), 2)
+        self.assertEqual(html.count('role="tabpanel"'), 2)
+        self.assertIn("What this protects", html)
+        self.assertIn('rel="icon"', html)
+        self.assertTrue((out / "assets" / "favicon.svg").exists())
+        self.assertFalse(list((out / "assets" / "fonts").glob("*.ttf")))  # build-only fonts are not served
+        self.assertLess(html.index('id="tab-ecdlp-256"'), html.index('id="tab-rsa-2048"'))  # Bitcoin first
         self.assertNotIn("github.com", html)
         self.assertTrue((out / "assets" / "fonts" / "Geist-Variable.woff2").exists())
         self.assertTrue((out / ".nojekyll").exists())
@@ -154,11 +169,14 @@ class Build(unittest.TestCase):
     def test_hostile_text_is_escaped(self):
         bad = dict(ROWS[0], title='<img src=x onerror=alert(1)> "t"', quote="<script>alert(1)</script>")
         out = self.build([bad], {"run_at": "2026-11-09T00:20:03+00:00"},
-                         [{"tier": "B", "url": "https://arxiv.org/abs/1", "title": "<b>x</b>", "reason": "<i>r</i>"}])
+                         [{"tier": "B", "url": "https://arxiv.org/abs/1", "title": "<b>x</b>", "reason": "<i>r</i>"},
+                          {"id": "a:1", "tier": "B", "url": "https://arxiv.org/abs/2", "title": "dup", "reason": "failed verification"},
+                          {"id": "a:1", "tier": "A", "url": "https://arxiv.org/abs/2", "title": "dup", "reason": "ok"}])
         html = (out / "index.html").read_text()
         self.assertNotIn("<script>alert", html)
         self.assertNotIn("<img src=x", html)
         self.assertNotIn("<b>x</b>", html)
+        self.assertNotIn(">dup<", html)  # a later confirmed run removes the paper from the radar
 
     def test_states(self):
         empty = (self.build([], None) / "index.html").read_text()

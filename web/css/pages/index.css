@@ -1,21 +1,28 @@
 /* Front page. Layout: hero with headline numbers, one timeline section per target, notes. */
-.hero{padding:44px 0 28px}
-.hero h1{margin:0;max-width:20ch;font-size:clamp(30px,4.6vw,46px);line-height:1.06;font-weight:650;letter-spacing:-.035em}
-.lede{margin:16px 0 0;max-width:62ch;font-size:16.5px;line-height:1.55;color:var(--ink-dim)}
-.hls{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:0;margin-top:30px;border-top:1px solid var(--line-strong)}
-.hl{display:block;padding:18px 24px 18px 0;color:var(--ink);border-bottom:1px solid var(--rule)}
-.hl:hover{text-decoration:none}.hl:hover .now{color:var(--accent)}
-.hl .what{display:block;font-size:13.5px;font-weight:600;color:var(--ink-dim)}
-.hl .nums{display:flex;align-items:baseline;gap:12px;margin:6px 0 4px;flex-wrap:wrap}
-.hl .was{font-size:24px;font-weight:500;color:var(--ink-dim);text-decoration:line-through;text-decoration-thickness:1px;font-variant-numeric:tabular-nums}
-.hl .arrow{font-size:22px;color:var(--ink-dim)}
-.hl .now{font-size:clamp(34px,5vw,52px);font-weight:650;letter-spacing:-.04em;line-height:1;font-variant-numeric:tabular-nums;transition:color .12s}
-.hl .cap{display:block;font-size:13px;color:var(--ink-dim)}
+.hero{padding:30px 0 18px}
+.hero h1{margin:0;max-width:24ch;font-size:clamp(26px,3.6vw,38px);line-height:1.08;font-weight:650;letter-spacing:-.03em}
+.lede{margin:10px 0 0;max-width:64ch;font-size:15.5px;line-height:1.5;color:var(--ink-dim)}
+.hls{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px;margin-top:20px}
+.hl{display:block;padding:14px 18px 14px;color:var(--ink);background:rgb(255 254 251/.5);border:1px solid var(--rule);border-radius:var(--radius);
+  transition:background .12s,border-color .12s}
+.hl:hover{text-decoration:none;background:var(--surface);border-color:var(--line-strong)}
+.hl.is-active{background:var(--surface);border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.hl .what{display:block;font-size:14.5px;font-weight:650;letter-spacing:-.01em}
+.hl .tech{display:block;font-size:12.5px;color:var(--ink-dim)}
+.hl .nums{display:flex;align-items:baseline;gap:10px;margin:8px 0 2px;flex-wrap:wrap}
+.hl .was{font-size:20px;font-weight:500;color:var(--ink-dim);text-decoration:line-through;text-decoration-thickness:1px;font-variant-numeric:tabular-nums}
+.hl .arrow{font-size:18px;color:var(--ink-dim)}
+.hl .now{font-size:clamp(30px,4vw,42px);font-weight:650;letter-spacing:-.04em;line-height:1;font-variant-numeric:tabular-nums}
+.hl.is-active .now{color:var(--accent)}
+.hl .cap{display:block;font-size:12.5px;color:var(--ink-dim)}
 
-.target{padding:36px 0 8px;border-top:1px solid var(--line-strong);margin-top:28px}
-.target>header h2{margin:0;font-size:24px;font-weight:650;letter-spacing:-.025em}
+.target{padding:22px 0 8px}
+.js .target:not(.is-active){display:none}
+.target+.target{border-top:1px solid var(--line-strong);margin-top:28px}
+.js .target+.target{border-top:0;margin-top:0}
+.target>header h2{margin:0;font-size:21px;font-weight:650;letter-spacing:-.025em}
 .target>header p{margin:4px 0 0;color:var(--ink-dim);max-width:60ch}
-.viz{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:28px;margin-top:20px;align-items:start}
+.viz{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:24px;margin-top:14px;align-items:start}
 .chart{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 12px 8px;min-width:0}
 .tl-narrow{display:none}
 .tl{display:block;width:100%;height:auto;overflow:visible}
@@ -62,3 +69,10 @@
   .tl-wide{display:none}.tl-narrow{display:block}
 }
 @media (max-width:640px){.hero{padding:28px 0 20px}.target{padding-top:28px}}
+
+.protects{margin-top:24px;padding:20px 22px;background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);box-shadow:var(--shadow)}
+.protects h3{margin:0 0 12px;font-size:15px;font-weight:650;letter-spacing:-.01em}
+.protects ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px 28px}
+.protects li strong{display:block;margin-bottom:3px}
+.protects li span{color:var(--ink-dim);font-size:13.5px;line-height:1.5}
+.protects p{margin:14px 0 0;font-size:12.5px}
