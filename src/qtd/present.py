@@ -173,13 +173,11 @@ TARGET_NAMES = {
 SECURES = {
     "ecdlp-256": [
         ("Bitcoin and Ethereum",
-         "Owning coins means holding a private key. Breaking the curve lets an attacker work out that key from its public key "
-         "and move the coins. The most exposed coins are those whose public key is already visible on the blockchain, and many of those sit in old "
-         "or lost wallets that cannot be moved to safer addresses, so they would stay exposed."),
-        ("Secure connections, SSH and messaging",
-         "TLS, SSH, Signal, iMessage and WireGuard use these curves. Browsers, OpenSSH, Signal and iMessage already add "
-         "post-quantum key exchange, so traffic they record from now on is safer. Signatures, certificates and logins "
-         "built on these curves could still be forged."),
+         "A broken curve lets an attacker derive the private key from a public key and move the coins. Coins with an exposed "
+         "public key are at risk, and many sit in old or lost wallets that can never be moved to safe addresses."),
+        ("Messaging and connections",
+         "Signal, iMessage, browsers and OpenSSH already add post-quantum key exchange. Signatures and logins on these curves "
+         "could still be forged."),
     ],
     "rsa-2048": [
         ("Websites (HTTPS certificates)",
