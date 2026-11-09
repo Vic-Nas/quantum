@@ -28,6 +28,25 @@
   color:var(--ok);font-size:13.5px;font-weight:600;white-space:nowrap}
 .cd .foot{margin:6px 0 0;padding-top:7px;border-top:1px solid var(--rule);font-size:12.5px;color:var(--ink-dim)}
 
+/* Services grid */
+.svc-section{margin:20px 0 0}
+.svc-section h2{margin:0 0 10px;font-size:16px;font-weight:650;letter-spacing:-.01em}
+.svc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.svc{display:flex;flex-direction:column;gap:4px;padding:12px 14px;background:var(--surface);border:1px solid var(--rule);
+  border-radius:var(--radius-sm);text-decoration:none;color:var(--ink);transition:background .12s}
+.svc:hover{background:var(--hover);text-decoration:none}
+.svc-name{font-size:14.5px;font-weight:650}
+.svc-note{font-size:12px;color:var(--ink-dim);line-height:1.35}
+.svc-foot{display:flex;justify-content:space-between;align-items:center;margin-top:auto;padding-top:4px}
+.svc-pq{font-size:11px;font-weight:600;padding:1px 7px;border-radius:4px}
+.svc-pq.pq-yes{color:var(--ok);background:rgb(29 122 62/.08)}
+.svc-pq.pq-part{color:var(--warn);background:rgb(138 90 0/.08)}
+.svc-pq.pq-no{color:var(--ink-dim);background:rgb(var(--ink-rgb)/.05)}
+.svc-yr{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}
+.svc-yr.dated{color:var(--accent)}
+.svc-yr.warn{color:var(--accent);opacity:.7}
+.svc-yr.safe{color:var(--ok)}
+
 /* Threat cards */
 .threat-card{display:flex;flex-direction:column;gap:6px;padding:16px 18px;background:var(--surface);border:1px solid var(--rule);
   border-radius:var(--radius);box-shadow:var(--shadow);text-decoration:none;color:var(--ink);transition:background .12s,box-shadow .12s}

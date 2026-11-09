@@ -13,9 +13,10 @@ from pathlib import Path
 from . import cardimg, cards, chart
 from .breakdate import METRICS, earliest_path, requirement, supply_points
 from .present import (ALGORITHMS, ALGORITHMS_NOTE, CHART_GROUPS, CONSEQUENCE, COUNTDOWN,
-                      PROXY_TARGETS, SECURES, SECURES_NOTE, clean, count, date_label,
-                      dom_id, duration, headline, label, paper_id, plain_reason, series,
-                      short_count, strip_dashes, year_frac, year_label)
+                      PROXY_TARGETS, SECURES, SECURES_NOTE, SERVICES, clean, count,
+                      date_label, dom_id, duration, headline, label, paper_id,
+                      plain_reason, series, short_count, strip_dashes, year_frac,
+                      year_label)
 
 WEB = Path("web")
 DEFAULT_URL = "https://vic-nas.github.io/quantum/"
@@ -326,14 +327,47 @@ def vendor_timeline_html(actor, entries):
 # Page bodies
 # ---------------------------------------------------------------------------
 
+def services_html(crows):
+    slug_year = {}
+    for crow in crows:
+        yr = crow["year"]
+        slug_year[crow["slug"]] = (yr, crow["safe"], crow.get("proxy"))
+    items = []
+    for name, note, slug, pq, detail in SERVICES:
+        yr, safe, proxy = slug_year.get(slug, (None, False, False))
+        if safe:
+            status_cls, status_txt = "safe", "Safe"
+        elif yr:
+            status_cls, status_txt = "dated", f"{yr}{'+ ' if proxy else ''}"
+        else:
+            status_cls, status_txt = "warn", "TBD"
+        if pq == "migrating":
+            pq_cls, pq_txt = "pq-yes", "Adding PQ protection"
+        elif pq == "partial":
+            pq_cls, pq_txt = "pq-part", "Partially protected"
+        else:
+            pq_cls, pq_txt = "pq-no", "No PQ protection yet"
+        items.append(
+            f'<a class="svc" href="threats/{e(slug)}/">'
+            f'<span class="svc-name">{e(name)}</span>'
+            f'<span class="svc-note">{e(note)}</span>'
+            f'<span class="svc-foot">'
+            f'<span class="svc-pq {pq_cls}">{pq_txt}</span>'
+            f'<span class="svc-yr {status_cls}">{e(status_txt)}</span>'
+            f'</span></a>')
+    return (f'<section class="svc-section"><h2>What you use</h2>'
+            f'<div class="svc-grid">{"".join(items)}</div></section>')
+
+
 def home_body(crows, today, alert):
     cd = countdown_html(crows, today)
+    svcs = services_html(crows) if crows else ""
     grid = threat_grid_html(crows) if crows else ""
     empty = '<p class="empty">No verified estimates yet. The first update has not stored any.</p>' if not crows else ""
     return (f'<section class="hero"><h1>When could quantum computers break the encryption you use?</h1>'
             f'<p class="lede">Based on how big a quantum computer published attacks need, '
             f'and the machines vendors say they will build.</p></section>'
-            f'{alert}{cd}{empty}{grid}')
+            f'{alert}{cd}{empty}{svcs}{grid}')
 
 
 def threat_body(crow, rows, hw_rows, depth):

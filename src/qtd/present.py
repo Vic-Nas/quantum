@@ -255,3 +255,20 @@ COUNTDOWN = [
     ("Older VPN and SSH setups", "Finite-field Diffie-Hellman. Real keys are bigger than the 512 bits studied, so later", ["dlp-ff-512"]),
     ("Disk encryption and passwords", "AES-128 and SHA-256 are only weakened, not broken", ["aes-128", "sha-256"]),
 ]
+
+# Specific apps and services people recognize, mapped to which threat group they fall under.
+# (name, short status note, threat_slug, pq_status)
+# pq_status: "migrating" = adding post-quantum protection, "not yet" = still vulnerable, "partial" = some protection added
+SERVICES = [
+    ("Chrome / Firefox", "HTTPS uses RSA or ECC certificates", "websites", "migrating", "Browsers are adopting ML-KEM for key exchange, but certificates still use classic keys."),
+    ("Signal", "X25519 key exchange (256-bit curve)", "bitcoin", "migrating", "Signal added PQXDH (post-quantum key agreement) in 2023. Older messages recorded before the update are still at risk."),
+    ("iMessage", "P-256 key exchange", "bitcoin", "migrating", "Apple added PQ3 post-quantum protocol in 2024. Older messages recorded before the update are still at risk."),
+    ("WhatsApp", "Curve25519 (Signal protocol)", "bitcoin", "not yet", "Uses the Signal protocol but has not yet enabled Signal's post-quantum upgrade."),
+    ("Tor Browser", "Curve25519 for relay circuits", "bitcoin", "not yet", "Tor relays use X25519. A quantum computer could decrypt recorded traffic. Post-quantum relay handshakes are in development."),
+    ("SSH", "Ed25519 or RSA keys", "bitcoin", "partial", "OpenSSH 9.0+ supports hybrid post-quantum key exchange, but most servers have not enabled it."),
+    ("WireGuard", "Curve25519 key exchange", "bitcoin", "not yet", "WireGuard uses X25519. Recorded traffic could be decrypted later. No post-quantum option yet."),
+    ("Bitcoin", "secp256k1 (ECDSA signatures)", "bitcoin", "not yet", "Coins whose public key is exposed on-chain are most at risk. No consensus on a migration plan yet."),
+    ("Ethereum", "secp256k1 + BLS12-381 validators", "bitcoin", "not yet", "Wallet keys and validator signatures are both vulnerable. Account abstraction may help wallets migrate."),
+    ("1Password / Bitwarden", "AES-256 vault, SRP or RSA key exchange", "disk-encryption", "partial", "Vault encryption (AES-256) is safe. Key exchange during login may use RSA or SRP, which is not."),
+    ("VPN (OpenVPN, IPsec)", "RSA or DH key exchange", "older-vpn", "not yet", "Most VPN setups still use classic key exchange. Recorded traffic could be decrypted later."),
+]
