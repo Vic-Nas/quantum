@@ -4,21 +4,15 @@ on:
   schedule:
     - cron: "17 5 * * *"    # daily run
     - cron: "17 17 * * *"   # second pass: retries anything queued while models were unavailable
-  workflow_dispatch:
-    inputs:
-      command:
-        description: "What to run"
-        type: choice
-        options: [run, seed, eval]
-        default: run
-      dry:
-        description: "Dry run (no model calls, writes nothing)"
-        type: boolean
-        default: false
-      hold_all:
-        description: "Hold every new row for review instead of applying it"
-        type: boolean
-        default: false
+  workflow_dispatch:         # manual "Run workflow" button: same as the daily run
+  push:                      # design changes republish the page only (no model calls)
+    branches: [main]
+    paths:
+      - "web/**"
+      - "src/qtd/site.py"
+      - "src/qtd/present.py"
+      - "src/qtd/cards.py"
+      - ".github/workflows/daily.yml"
 
 permissions:
   contents: write
@@ -50,17 +44,13 @@ jobs:
           restore-keys: qtd-cache-
       - name: Tests must pass before anything runs
         run: python -m unittest discover -s tests
-      - name: Run
-        id: run
+      - name: Run pipeline
+        if: github.event_name != 'push'
         run: |
-          CMD="${{ inputs.command || 'run' }}"
-          ARGS=""
-          if [ "${{ inputs.dry }}" = "true" ]; then ARGS="$ARGS --no-llm"; fi
-          if [ "${{ inputs.hold_all }}" = "true" ]; then ARGS="$ARGS --no-auto"; fi
-          if [ "$CMD" = "run" ]; then python -m qtd run $ARGS | tee out.json
-          else python -m qtd $CMD | tee out.json; fi
+          python -m qtd run | tee out.json
           { echo '### qtd output'; echo '```json'; cat out.json; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
       - name: Commit data changes
+        if: github.event_name != 'push'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
