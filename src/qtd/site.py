@@ -9,7 +9,7 @@ from pathlib import Path
 
 from . import cardimg, cards, chart
 from .breakdate import METRICS, earliest_path, requirement, supply_points
-from .present import (SECURES, SECURES_NOTE, TARGET_NAMES, TARGET_ORDER, clean, count, date_label, dom_id, duration, headline,
+from .present import (ALGORITHMS, ALGORITHMS_NOTE, SECURES, SECURES_NOTE, TARGET_NAMES, TARGET_ORDER, clean, count, date_label, dom_id, duration, headline,
                       label, paper_id, plain_reason, series, short_count, strip_dashes, year_frac)
 
 WEB = Path("web")
@@ -94,10 +94,10 @@ def target_section(rows, hw_rows, target, today=None):
                 '<span class="li"><span class="k"></span>Other announced machines</span>'
                 '<span class="li"><span class="k need"></span>Size the cheapest known attack needs</span>'
                 '<span class="li"><span class="k zone"></span>An announced machine is big enough</span></p>'
-                '<p class="dim pad">Announced plans, not delivered machines. Different kinds of qubits are not strictly comparable.</p></div>')
+                '<p class="dim pad">Plans, not delivered machines. Physical qubits are real hardware; logical qubits are error-corrected groups of them.</p></div>')
         default_id = (path["supply"]["id"] if by else need_row["id"])
-        sub = (f'Earliest announced path to break it: <strong>{by}</strong>. The cheapest known attack needs '
-               f'{e(short_count(path["need"]))} {_words(path["metric"])}, and {e(path["supply"]["actor"])} announced '
+        sub = (f'Earliest announced path: <strong>{by}</strong>. The cheapest known attack needs '
+               f'{e(short_count(path["need"]))}; {e(path["supply"]["actor"])} announced '
                f'{e(short_count(path["supply"][path["metric"]]))} by {by}.') if by else (
                f'No date: {e(path["reason"])}.')
     else:
@@ -129,7 +129,7 @@ def target_section(rows, hw_rows, target, today=None):
                     f'<p class="dim">{e(SECURES_NOTE)}</p></div>') if secures else ""
     pname, tech = TARGET_NAMES.get(target, (name, name))
     return (f'<section class="target" id="t-{e(target)}" role="tabpanel" aria-labelledby="tab-{e(target)}">'
-            f'<header><h2>{e(pname)}</h2><p>Secured by {e(tech)}. {sub}</p></header>'
+            f'<header><h2>{e(pname)}</h2><p>{sub}</p></header>'
             f'<div class="viz">{main}<aside class="proofs" aria-live="polite">{proofs}</aside></div>{hist}{also_html}{secures_html}</section>')
 
 
@@ -154,6 +154,25 @@ def tiles(rows, hw_rows, targets):
                    f'<span class="nums">{nums}</span><span class="cap">{cap}</span>'
                    f'{f"<span class=cap>{more}</span>" if more else ""}{f"<span class=cap>{fell}</span>" if fell else ""}</a>')
     return "".join(out)
+
+
+def algorithms_tile(n_active):
+    broken = sum(1 for a in ALGORITHMS if a[2] == "broken")
+    weak = sum(1 for a in ALGORITHMS if a[2] == "weakened")
+    charted = len({a[0] for a in ALGORITHMS if a[3]})
+    return (f'<a class="hl" id="tab-all" role="tab" href="#t-all" data-tab="t-all" aria-selected="false"><span class="what">Everything affected</span>'
+            f'<span class="tech">Every algorithm in common use</span><span class="nums"><span class="now">{broken}</span></span>'
+            f'<span class="cap">families broken, {weak} more weakened</span><span class="cap">{charted} of the {broken} broken are charted here</span></a>')
+
+
+def algorithms_section():
+    rows = "".join(
+        f'<tr><td><strong>{e(name)}</strong></td><td>{e(used)}</td><td class="st {e(st)}">{e(st.capitalize())}</td>'
+        f'<td>{f"<a href=#t-{e(tid)} data-tab=t-{e(tid)}>{e(note)}</a>" if tid else e(note)}</td></tr>'
+        for name, used, st, tid, note in ALGORITHMS)
+    return ('<section class="target" id="t-all" role="tabpanel" aria-labelledby="tab-all"><header><h2>Everything a quantum computer affects</h2>'
+            f'<p>{e(ALGORITHMS_NOTE)}</p></header><div class="algos"><table><thead><tr><th>Algorithm</th><th>Where you meet it</th>'
+            f'<th>Quantum threat</th><th>On this page</th></tr></thead><tbody>{rows}</tbody></table></div></section>')
 
 
 def radar_rows(path):
@@ -227,19 +246,13 @@ def build(out="site", data="data"):
 <header class="bar"><span class="brand"><img src="assets/favicon.svg" alt="" width="22" height="22">Quantum threat tracker</span><span class="upd">Updated {e(updated)}</span></header>
 <main class="page">
 <section class="hero"><h1>How close is quantum computing to breaking today's encryption?</h1>
-<p class="lede">Today's security holds because nobody has built a quantum computer big enough. This page compares two things: the machine
-size the cheapest published attack needs, and the machines vendors say they will build. Where they meet is the earliest announced
-path to a break. Those are plans, not delivered machines. Pick what you care about, then click any dot to read the source's own words.</p>
-<div class="hls" role="tablist" aria-label="What to look at">{tiles(rows, hw_rows, present)}</div></section>
-{alert}{body}
-<section class="notes"><h2>How to read this</h2>
-<dl><div><dt>Qubit</dt><dd>The basic unit of a quantum computer, like a bit in an ordinary one. Breaking encryption takes many of them working together.</dd></div>
-<div><dt>Physical vs. error-corrected</dt><dd>A physical qubit is one real piece of hardware. Error-corrected (logical) qubits are built from many physical ones, so they are not comparable with the charted numbers.</dd></div>
-<div><dt>What is covered</dt><dd>So far: RSA-2048, and 256-bit elliptic curves (Bitcoin and Ethereum's secp256k1, P-256, Curve25519 and Ed25519, treated as one group). Also broken by a large enough quantum computer but not charted yet: other RSA sizes and curves, finite-field Diffie-Hellman, and the pairing curves BLS12-381 and BN254 (Ethereum validators, zero-knowledge proofs). Ciphers like AES and hashes like SHA-256 are only weakened, not broken.</dd></div>
-<div><dt>Plans, not promises</dt><dd>Dates come from the vendors' own roadmaps, which can slip or be missed. The page never shows a date earlier than something publicly announced, so it is a pessimistic reading, not a prediction.</dd></div>
-<div><dt>Not an exact match</dt><dd>The attack designs assume particular hardware, and vendors build different kinds of qubits, so the match is a headline and not a guarantee. Read the quotes. Only vendor pages that could be read automatically are included so far; Google's roadmap page is not.</dd></div></dl></section>
+<p class="lede">The machine size the cheapest published attack needs, against the machines vendors plan to build. The year they meet is the
+earliest announced path to a break. Plans, not delivered machines.</p>
+<div class="hls" role="tablist" aria-label="What to look at">{tiles(rows, hw_rows, present)}{algorithms_tile(0)}</div></section>
+{alert}{body}{algorithms_section()}
+
 {radar_html}
-<footer><span>Figures are sentences quoted from each paper or vendor page and checked against its text. The descriptions of what each algorithm protects are written by hand.</span><a href="data/attacks.json">Raw data</a></footer>
+<footer><span>Every figure is quoted from a paper or vendor page and checked against its text. The lists of what is affected are written by hand.</span><a href="data/attacks.json">Raw data</a></footer>
 </main>{"".join(f'<script src="{e(s)}" defer></script>' for s in scripts)}</body></html>"""
     (out / "index.html").write_text(page)
     return out

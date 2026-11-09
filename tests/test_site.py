@@ -192,13 +192,16 @@ class Build(unittest.TestCase):
         self.assertGreater(html.count('class="dot'), 8)
         self.assertIn('class="proof is-sel"', html)
         self.assertNotIn("<nav", html)  # no navigation bar
-        self.assertEqual(html.count('role="tab"'), 2)
-        self.assertEqual(html.count('role="tabpanel"'), 2)
+        self.assertEqual(html.count('role="tab"'), 3)  # two charts and the full list
+        self.assertEqual(html.count('role="tabpanel"'), 3)
+        self.assertIn("Everything a quantum computer affects", html)
+        for name in ("secp256k1", "P-256", "Curve25519", "P-384", "Finite-field Diffie-Hellman", "BLS12-381", "AES-128", "SHA-256"):
+            self.assertIn(name, html)
+        self.assertNotIn("How to read this", html)  # no long explanatory section at the bottom
         self.assertIn("What this protects", html)
-        self.assertIn("Earliest announced path to break it", html)
-        self.assertIn("Plans, not promises", html)
-        self.assertIn("What is covered", html)
-        self.assertIn("BLS12-381", html)
+        self.assertIn("earliest announced path to break it", html)  # tile caption
+        self.assertIn("Earliest announced path: <strong>2028</strong>", html)  # section header
+        self.assertIn("Plans, not delivered machines", html)
         self.assertEqual(html.count('class="zone"'), 4)  # wide and narrow chart for each of the two targets
         self.assertIn('class="when"', html)
         self.assertIn("How the size needed fell, paper by paper", html)

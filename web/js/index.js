@@ -1,7 +1,7 @@
 // 1) Tabs: the headline tiles switch between targets. Without JS every target stays visible and the tiles are plain anchors.
 // 2) Proof: click a dot (or an "also published" link) to show that paper's proof.
 (function () {
-  var tabs = Array.prototype.slice.call(document.querySelectorAll("[data-tab]"));
+  var tabs = Array.prototype.slice.call(document.querySelectorAll(".hl[data-tab]"));
 
   function activate(panelId, focus) {
     var panel = document.getElementById(panelId);
@@ -42,7 +42,7 @@
   });
 
   document.addEventListener("keydown", function (ev) {
-    var tab = ev.target.closest && ev.target.closest("[data-tab]");
+    var tab = ev.target.closest && ev.target.closest(".hl[data-tab]");
     if (!tab || (ev.key !== "ArrowRight" && ev.key !== "ArrowLeft")) return;
     var i = tabs.indexOf(tab) + (ev.key === "ArrowRight" ? 1 : -1);
     activate(tabs[(i + tabs.length) % tabs.length].getAttribute("data-tab"), true);

@@ -177,3 +177,20 @@ def plain_reason(reason: str) -> str:
     if "models unavailable" in r:
         return "The AI models were unavailable when it was checked."
     return clean(r, 120)
+
+
+# Hand-written (not extracted): the algorithms people actually use that a large quantum computer affects.
+# status: "broken" = Shor's algorithm recovers the key; "weakened" = Grover's algorithm halves the security level.
+ALGORITHMS = [
+    ("RSA (2048, 3072, 4096 bits)", "HTTPS certificates, signed software and updates, older PGP email, some VPNs", "broken", "rsa-2048", "RSA-2048 charted"),
+    ("secp256k1 (ECDSA)", "Bitcoin, Ethereum and most other blockchains", "broken", "ecdlp-256", "charted"),
+    ("P-256 (secp256r1)", "HTTPS, passkeys, many corporate systems", "broken", "ecdlp-256", "charted with 256-bit curves"),
+    ("Curve25519, X25519 and Ed25519", "SSH keys, Signal, WireGuard, modern HTTPS key exchange, Tor", "broken", "ecdlp-256", "charted with 256-bit curves"),
+    ("P-384 and larger curves", "Government and enterprise HTTPS, some code signing", "broken", None, "not charted yet"),
+    ("Finite-field Diffie-Hellman and DSA", "Older HTTPS, SSH and VPN setups", "broken", None, "not charted yet"),
+    ("BLS12-381 and BN254 pairing curves", "Ethereum validator signatures, zero-knowledge proofs, KZG commitments", "broken", None, "not charted yet"),
+    ("AES-128", "Disk and network encryption", "weakened", None, "use AES-256"),
+    ("SHA-256 and other hashes", "Bitcoin mining and addresses, certificates, passwords", "weakened", None, "use longer outputs"),
+]
+ALGORITHMS_NOTE = ("Broken: a large enough quantum computer recovers the secret key. Weakened: the security level is roughly halved, "
+                   "so larger keys fix it. Replacements exist (NIST standardised ML-KEM, ML-DSA and SLH-DSA in 2024).")
