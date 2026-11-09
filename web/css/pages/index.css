@@ -79,3 +79,18 @@
 .protects li strong{display:block;margin-bottom:3px}
 .protects li span{color:var(--ink-dim);font-size:13.5px;line-height:1.5}
 .protects p{margin:14px 0 0;font-size:12.5px}
+
+/* break chart: announced machines vs the size needed */
+.tl .zone{fill:rgb(194 87 12/.10)}
+.tl .need{stroke:var(--ink);stroke-width:1.6;stroke-dasharray:6 4}
+.tl .need-lbl{cursor:pointer}
+.tl .need-lbl:hover text{fill:var(--accent)}
+.tl .cross{stroke:var(--accent);stroke-width:1.5;stroke-dasharray:3 3}
+.tl .when{fill:var(--accent);font:700 14px var(--sans)}
+.legend .k.need{width:18px;height:0;border-radius:0;border:0;border-top:2px dashed var(--ink)}
+.legend .k.zone{border-radius:2px;background:rgb(194 87 12/.16);border-color:rgb(194 87 12/.45)}
+.hl .now.none{font-size:clamp(20px,2.6vw,28px);letter-spacing:-.02em;color:var(--ink-dim)}
+.pad{padding:12px 14px;margin:0}
+.history{margin-top:18px}
+.history summary{cursor:pointer;color:var(--ink-dim);padding:4px 0}
+.history .chart{margin-top:10px}

@@ -8,6 +8,7 @@ Models propose, code verifies.
 ```bash
 export GEMINI_API_KEY=...
 PYTHONPATH=src python3 -m qtd run      # fetch, extract, verify, apply
+PYTHONPATH=src python3 -m qtd hardware # read vendor roadmap pages (also part of run)
 PYTHONPATH=src python3 -m qtd retry    # re-check only the queued papers
 PYTHONPATH=src python3 -m qtd eval     # score regex and models against data/gold/gold.jsonl
 PYTHONPATH=src python3 -m qtd.site site

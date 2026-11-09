@@ -1,12 +1,14 @@
 """Allowlisted fetchers. Each returns a list of item dicts with a stable id."""
+import hashlib
 import re
 import urllib.parse
+from html.parser import HTMLParser
 import xml.etree.ElementTree as ET
 
 from . import http
 from .textutil import norm
 
-ALLOWLIST = ("arxiv.org", "eprint.iacr.org")
+ALLOWLIST = ("arxiv.org", "eprint.iacr.org", "ionq.com", "quantinuum.com", "quantumai.google", "ibm.com")
 
 ARXIV_QUERIES = [
     'abs:"discrete logarithm" AND abs:quantum',
@@ -82,6 +84,60 @@ def parse_eprint(xml_bytes: bytes):
 
 def fetch_eprint():
     return parse_eprint(http.get("https://eprint.iacr.org/rss/rss.xml"))
+
+
+class _Text(HTMLParser):
+    """Visible text of a page: skips scripts, styles and hidden chrome, keeps block boundaries as newlines."""
+    SKIP = {"script", "style", "noscript", "svg", "head", "template"}
+    BLOCK = {"p", "div", "li", "h1", "h2", "h3", "h4", "h5", "h6", "tr", "br", "section", "article", "td", "th", "blockquote"}
+
+    def __init__(self):
+        super().__init__()
+        self.parts, self.skip, self.title, self._in_title = [], 0, "", False
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "title":
+            self._in_title = True
+        if tag in self.SKIP and tag != "head":
+            self.skip += 1
+        if tag in self.BLOCK:
+            self.parts.append("\n")
+
+    def handle_endtag(self, tag):
+        if tag == "title":
+            self._in_title = False
+        if tag in self.SKIP and tag != "head":
+            self.skip = max(0, self.skip - 1)
+        if tag in self.BLOCK:
+            self.parts.append("\n")
+
+    def handle_data(self, data):
+        if self._in_title:
+            self.title += data
+        elif not self.skip:
+            self.parts.append(data)
+
+
+def html_to_text(raw: str):
+    """Return (title, text) with one block of text per line and runs of whitespace collapsed."""
+    p = _Text()
+    p.feed(raw)
+    lines = [re.sub(r"[ \t\u00a0]+", " ", ln).strip() for ln in "".join(p.parts).split("\n")]
+    return norm(p.title), "\n".join(ln for ln in lines if ln)
+
+
+def fetch_pages(sources):
+    """Fetch configured vendor pages. sources: [{'url', 'actor'}]. Returns items shaped like paper items."""
+    items = []
+    for s in sources:
+        if not is_allowlisted(s["url"]):
+            continue
+        raw = http.get(s["url"]).decode("utf-8", "replace")
+        title, text = html_to_text(raw)
+        items.append({"id": "page:" + urllib.parse.urlparse(s["url"]).netloc + urllib.parse.urlparse(s["url"]).path.rstrip("/"),
+                      "version": hashlib.sha256(text.encode()).hexdigest()[:12], "source": "page", "url": s["url"],
+                      "actor": s["actor"], "title": title or s["actor"], "text": text, "published": "", "updated": ""})
+    return items
 
 
 def fetch_all():

@@ -1,1 +1,135 @@
-[]
+[
+ {
+  "id": "page:ionq.com/roadmap#0",
+  "kind": "hardware",
+  "physical_qubits": 100.0,
+  "logical_qubits": 12.0,
+  "target_year": 2026.0,
+  "actor": "IonQ",
+  "quote": "2026 100-256+ physical qubits 99.99% Physical qubit fidelity 12 Logical qubits",
+  "url": "https://ionq.com/roadmap",
+  "title": "IonQ | Roadmap",
+  "added": "2026-11-09",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemini-3.1-flash-lite"
+  },
+  "verification": "auto: verifier + two models agree"
+ },
+ {
+  "id": "page:ionq.com/roadmap#1",
+  "kind": "hardware",
+  "physical_qubits": 10000.0,
+  "logical_qubits": 800.0,
+  "target_year": 2027.0,
+  "actor": "IonQ",
+  "quote": "2027 10,000 physical qubits 99.99% Physical qubit fidelity 800 Logical qubits",
+  "url": "https://ionq.com/roadmap",
+  "title": "IonQ | Roadmap",
+  "added": "2026-11-09",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemini-3.1-flash-lite"
+  },
+  "verification": "auto: verifier + two models agree"
+ },
+ {
+  "id": "page:ionq.com/roadmap#2",
+  "kind": "hardware",
+  "physical_qubits": 20000.0,
+  "logical_qubits": 1600.0,
+  "target_year": 2028.0,
+  "actor": "IonQ",
+  "quote": "2028 20,000 physical qubits \u200d99.99% Physical qubit fidelity 1,600 Logical qubits",
+  "url": "https://ionq.com/roadmap",
+  "title": "IonQ | Roadmap",
+  "added": "2026-11-09",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemini-3.1-flash-lite"
+  },
+  "verification": "auto: verifier + two models agree"
+ },
+ {
+  "id": "page:ionq.com/roadmap#3",
+  "kind": "hardware",
+  "physical_qubits": 200000.0,
+  "logical_qubits": 8000.0,
+  "target_year": 2029.0,
+  "actor": "IonQ",
+  "quote": "2029 200,000 physical qubits 99.99% Physical qubit fidelity 8,000 Logical qubits",
+  "url": "https://ionq.com/roadmap",
+  "title": "IonQ | Roadmap",
+  "added": "2026-11-09",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemini-3.1-flash-lite"
+  },
+  "verification": "auto: verifier + two models agree"
+ },
+ {
+  "id": "page:ionq.com/roadmap#4",
+  "kind": "hardware",
+  "physical_qubits": 2000000.0,
+  "logical_qubits": 80000.0,
+  "target_year": 2030.0,
+  "actor": "IonQ",
+  "quote": "IonQ is delivering the world's most powerful quantum computers with 2 million physical qubits and 80,000 logical qubits by 2030 to solve the world's most complex problems.",
+  "url": "https://ionq.com/roadmap",
+  "title": "IonQ | Roadmap",
+  "added": "2026-11-09",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemini-3.1-flash-lite"
+  },
+  "verification": "auto: verifier + two models agree"
+ },
+ {
+  "id": "page:www.ibm.com/quantum/blog/large-scale-ftqc#0",
+  "kind": "hardware",
+  "logical_qubits": 200.0,
+  "target_year": 2029.0,
+  "actor": "IBM",
+  "quote": "By 2029, we will deliver IBM Quantum Starling \u2014 a large-scale, fault-tolerant quantum computer capable of running quantum circuits comprising 100 million quantum gates on 200 logical qubits.",
+  "url": "https://www.ibm.com/quantum/blog/large-scale-ftqc",
+  "title": "IBM lays out clear path to fault-tolerant quantum computing | IBM Quantum Computing Blog",
+  "added": "2026-11-09",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemini-3.1-flash-lite"
+  },
+  "verification": "auto: verifier + two models agree"
+ },
+ {
+  "id": "page:www.ibm.com/quantum/blog/large-scale-ftqc#1",
+  "kind": "hardware",
+  "physical_qubits": 1080.0,
+  "target_year": 2028.0,
+  "actor": "IBM",
+  "quote": "By 2028, Nighthawk will be able to run circuits with 15,000 gates, and we'll be able to connect up to 9 modules with l-couplers to realize 1,080 connected qubits.",
+  "url": "https://www.ibm.com/quantum/blog/large-scale-ftqc",
+  "title": "IBM lays out clear path to fault-tolerant quantum computing | IBM Quantum Computing Blog",
+  "added": "2026-11-09",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemini-3.1-flash-lite"
+  },
+  "verification": "auto: verifier + two models agree"
+ },
+ {
+  "id": "page:www.quantinuum.com/press-releases/quantinuum-unveils-accelerated-roadmap-to-achieve-universal-fault-tolerant-quantum-computing-by-2030#0",
+  "kind": "hardware",
+  "logical_qubits": 100.0,
+  "target_year": 2027.0,
+  "actor": "Quantinuum",
+  "quote": "Sol remains on track for 2H 2027, with full-scale control-system validation complete and integration and assembly targeted for Q1 2027, ahead of validation and tuning toward 100 logical qubits at a target logical error rate of 10\u207b\u2075.",
+  "url": "https://www.quantinuum.com/press-releases/quantinuum-unveils-accelerated-roadmap-to-achieve-universal-fault-tolerant-quantum-computing-by-2030",
+  "title": "Quantinuum Unveils Accelerated Roadmap to Achieve Universal, Fully Fault-Tolerant Quantum Computing by 2030",
+  "added": "2026-11-09",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemini-3.1-flash-lite"
+  },
+  "verification": "auto: verifier + two models agree"
+ }
+]

@@ -61,3 +61,40 @@ def extract(item: dict, model: str) -> dict:
     ests = [{"quote": e.get("quote", ""), "fields": {f["name"]: f["value"] for f in e.get("fields", [])}}
             for e in out.get("estimates", [])]
     return {"kind": out.get("kind", "none"), "estimates": ests}
+
+
+HARDWARE_PROMPT = """Extract quantum computer hardware plans and claims from the text. Rules:
+- Use ONLY the text. Never use prior knowledge. Never compute or convert.
+- Only the company's own systems or plans. Ignore other companies and results cited as background.
+- Emit one estimate per claim that states BOTH a qubit count AND a year. Omit anything missing either.
+- Each estimate has:
+  quote: ONE contiguous passage copied verbatim from the text (at most two sentences) that contains the year and the numbers.
+  fields: name/value pairs copied as written: physical_qubits, logical_qubits, target_year (for example 2029).
+- Use kind "hardware". If nothing qualifies, kind "none" with no estimates.
+
+TITLE: {title}
+TEXT: {text}"""
+
+
+def hardware_prompt(item: dict) -> str:
+    return HARDWARE_PROMPT.format(title=item["title"], text=item["text"])
+
+
+def extract_hardware(item: dict, model: str) -> dict:
+    out = llm.generate(model, hardware_prompt(item), EXTRACT_SCHEMA)
+    ests = [{"quote": e.get("quote", ""), "fields": {f["name"]: f["value"] for f in e.get("fields", [])}}
+            for e in out.get("estimates", [])]
+    return {"kind": out.get("kind", "none"), "estimates": ests}
+
+
+def chunks(text: str, size: int = 12000):
+    """Split page text into pieces of at most `size` characters on line boundaries."""
+    out, cur = [], ""
+    for line in text.split("\n"):
+        if cur and len(cur) + len(line) + 1 > size:
+            out.append(cur)
+            cur = ""
+        cur += line + "\n"
+    if cur.strip():
+        out.append(cur)
+    return out

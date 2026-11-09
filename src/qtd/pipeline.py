@@ -217,3 +217,74 @@ def retry():
     if not _load(DATA / "queue.json", {}):
         return {"processed": 0, "queue_size": 0, "idle": True}
     return run(items=[])
+
+
+MAX_HW_ROWS_PER_RUN = 25  # a burst larger than this is held for a person instead of applied
+
+
+def _hw_key(v: dict):
+    return (v.get("actor"), v.get("target_year"), v.get("physical_qubits"), v.get("logical_qubits"))
+
+
+def run_hardware(items: list | None = None, dry: bool = False):
+    """Fetch the configured vendor pages, extract roadmap claims (qubit count plus year) with two models,
+    verify every quote against the page text, and append the claims both models agree on.
+
+    Append-only: a vendor later removing or delaying a claim is not applied automatically.
+    """
+    errors = {}
+    if items is None:
+        items = []
+        for src in _load(DATA / "hardware_sources.json", []):
+            try:
+                items += sources.fetch_pages([src])
+            except RuntimeError as e:
+                errors[src["url"]] = str(e)[:120]
+    seen = _load(DATA / "hw_seen.json", {})
+    rows = _load(DATA / "hardware.json", [])
+    known = {_hw_key(r) for r in rows}
+    summary = {"pages": len(items), "changed": 0, "applied": 0, "held": 0, "unavailable": 0, "errors": errors}
+    new = []
+    for it in items:
+        if seen.get(it["id"]) == it["version"]:
+            continue
+        summary["changed"] += 1
+        found, complete = [], True
+        for chunk in stages.chunks(it["text"]):
+            sub = {**it, "text": chunk}
+            try:
+                ex1, m1 = llm.call_chain("primary", lambda mod: stages.extract_hardware(sub, mod))
+                v1 = verify(ex1, stages.source_text(sub), sources.is_allowlisted(it["url"]), {"actor": it["actor"]})
+                if not v1["ok_estimates"]:
+                    continue
+                ex2, m2 = llm.call_chain("secondary", lambda mod: stages.extract_hardware(sub, mod), exclude=m1)
+                v2 = verify(ex2, stages.source_text(sub), sources.is_allowlisted(it["url"]), {"actor": it["actor"]})
+            except llm.LLMError:
+                complete = False
+                break
+            for e in v1["ok_estimates"]:
+                if any_agrees(e["values"], v2["ok_estimates"]):
+                    found.append({"values": e["values"], "quote": e["quote"], "models": {"primary": m1, "secondary": m2}})
+        if not complete:
+            summary["unavailable"] += 1  # leave the page unseen so the next run tries again
+            continue
+        seen[it["id"]] = it["version"]
+        for n, f in enumerate(dedupe_estimates(found)):
+            if _hw_key(f["values"]) in known:
+                continue
+            known.add(_hw_key(f["values"]))
+            vals = {k: (round(v, 6) if isinstance(v, float) else v) for k, v in f["values"].items()}
+            new.append({"id": f"{it['id']}#{n}", "kind": "hardware", **vals, "quote": f["quote"], "url": it["url"],
+                        "title": it["title"], "added": dt.date.today().isoformat(), "models": f["models"],
+                        "verification": "auto: verifier + two models agree"})
+    if len(new) > MAX_HW_ROWS_PER_RUN:
+        summary["held"] = len(new)
+        if not dry:
+            (DATA / "proposals").mkdir(parents=True, exist_ok=True)
+            (DATA / "proposals" / f"hardware_{dt.date.today().isoformat()}.json").write_text(json.dumps(new, indent=1))
+        new = []
+    summary["applied"] = len(new)
+    if not dry:
+        (DATA / "hardware.json").write_text(json.dumps(rows + new, indent=1))
+        (DATA / "hw_seen.json").write_text(json.dumps(seen, indent=1))
+    return summary

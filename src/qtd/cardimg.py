@@ -1,6 +1,7 @@
 """Render the 1200x630 share image with Pillow. Returns False (no image) if Pillow is unavailable."""
 from pathlib import Path
 
+from .breakdate import earliest_path
 from .present import TARGET_NAMES, TARGET_ORDER, date_label, headline, short_count
 
 W, H = 1200, 630
@@ -19,7 +20,7 @@ def _wrap(draw, text, font, width):
     return lines + [cur]
 
 
-def render(rows, as_of, out, fonts=Path("web/fonts"), domain=""):
+def render(rows, hw_rows, as_of, out, fonts=Path("web/fonts"), domain=""):
     try:
         from PIL import Image, ImageDraw, ImageFont
     except ImportError:
@@ -47,18 +48,15 @@ def render(rows, as_of, out, fonts=Path("web/fonts"), domain=""):
         d.line([(x, base - 20), (x + 520, base - 20)], fill=RULE, width=2)
         d.text((x, base), name, font=mid, fill=INK)
         d.text((x, base + 34), tech, font=small, fill=DIM)
-        now = short_count(h["best"]["y"])
-        if h["first"] is not h["best"]:
-            was = short_count(h["first"]["y"])
-            d.text((x, base + 84), was, font=mid, fill=DIM)
-            wx = x + d.textlength(was, font=mid)
-            d.line([(x, base + 99), (wx, base + 99)], fill=DIM, width=2)
-            d.text((x, base + 120), now, font=big, fill=ACCENT)
-            cap = f"qubits needed, {date_label(h['first']['date'], True)} to {date_label(h['best']['date'], True)}"
+        path = earliest_path(rows, hw_rows, t)
+        if path.get("year"):
+            d.text((x, base + 78), str(path["year"]), font=big, fill=ACCENT)
+            d.text((x, base + 172), "earliest announced path to break it", font=small, fill=DIM)
+            d.text((x, base + 204), f"needs {short_count(path['need'])} qubits; {path['supply']['actor']} plans {short_count(path['supply'][path['metric']])}",
+                   font=small, fill=DIM)
         else:
-            d.text((x, base + 100), now, font=big, fill=ACCENT)
-            cap = f"qubits needed, {date_label(h['best']['date'], True)}"
-        d.text((x, base + 214), cap, font=small, fill=DIM)
+            d.text((x, base + 90), "No date yet", font=big, fill=DIM)
+            d.text((x, base + 188), path["reason"], font=small, fill=DIM)
         col += 580
     foot = ("Updated " + date_label(as_of) + "  |  " if as_of else "") + (domain or "Published estimates, each with its source")
     d.text((60, H - 46), foot, font=small, fill=DIM)

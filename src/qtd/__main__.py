@@ -9,13 +9,19 @@ r = sub.add_parser("run", help="fetch, filter, extract, verify, route")
 r.add_argument("--no-llm", action="store_true", help="dry run: writes nothing")
 r.add_argument("--no-auto", action="store_true", help="hold every Tier A row instead of applying")
 r.add_argument("--limit", type=int)
+sub.add_parser("hardware", help="fetch vendor roadmap pages and extract hardware claims")
 sub.add_parser("retry", help="re-check queued papers only")
 sub.add_parser("seed", help="one-time baseline from the gold papers")
 e = sub.add_parser("eval", help="score regex and models against the gold set")
 e.add_argument("--no-llm", action="store_true")
 a = ap.parse_args()
 if a.cmd == "run":
-    print(json.dumps(pipeline.run(use_llm=not a.no_llm, limit=a.limit, auto_apply=not a.no_auto), indent=1))
+    out = {"papers": pipeline.run(use_llm=not a.no_llm, limit=a.limit, auto_apply=not a.no_auto)}
+    if not a.no_llm:
+        out["hardware"] = pipeline.run_hardware()
+    print(json.dumps(out, indent=1))
+elif a.cmd == "hardware":
+    print(json.dumps(pipeline.run_hardware(), indent=1))
 elif a.cmd == "retry":
     print(json.dumps(pipeline.retry(), indent=1))
 elif a.cmd == "seed":

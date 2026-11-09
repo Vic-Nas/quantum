@@ -9,7 +9,7 @@ ATTACK_FIELDS = {
     "runtime": ("duration", 1e-3, 1e5),  # hours
 }
 HARDWARE_FIELDS = {
-    "actor": ("text", None, None),
+    "actor": ("text", None, None),  # supplied by the source configuration, not by the model
     "logical_qubits": ("number", 1, 1e8),
     "physical_qubits": ("number", 1, 1e10),
     "target_year": ("number", 2020, 2100),

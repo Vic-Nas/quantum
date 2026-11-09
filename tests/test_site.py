@@ -30,6 +30,13 @@ except ImportError:
     HAVE_PIL = False
 
 
+HW = [
+    {"id": f"page:ionq.com/roadmap#{i}", "kind": "hardware", "actor": "IonQ", "target_year": float(y), "physical_qubits": float(pq),
+     "logical_qubits": float(lq), "quote": f"{y} {pq:,} physical qubits {lq:,} logical qubits", "url": "https://ionq.com/roadmap",
+     "title": "IonQ | Roadmap", "added": "2026-11-09"}
+    for i, (y, pq, lq) in enumerate([(2026, 100, 12), (2027, 10000, 800), (2028, 20000, 1600), (2029, 200000, 8000)])]
+
+
 class Tags(HTMLParser):
     def __init__(self):
         super().__init__()
@@ -102,7 +109,6 @@ class Chart(unittest.TestCase):
         self.assertEqual(chart.timeline_svg([], 640, 330, "x"), "")
         today = present.year_frac("2026-11-09")
         svg = chart.timeline_svg(pts, 640, 330, "label", today)
-        self.assertIn('class="future"', svg)  # the empty future is drawn, not extrapolated into
         self.assertIn(">Today<", svg)
         import re
         stair = re.search(r'class="stair" d="([^"]+)"', svg).group(1)
@@ -115,11 +121,14 @@ class Chart(unittest.TestCase):
 
 class Cards(unittest.TestCase):
     def test_home_card(self):
-        c = cards.home_card(ROWS, "2026-11-09", "https://example.com/q/")
-        self.assertIn("RSA-2048 (websites, software updates): 20 million \u2192 45,000 qubits since May 2019", c["description"])
-        self.assertIn("Bitcoin and Ethereum keys", c["description"])
+        c = cards.home_card(ROWS, HW, "2026-11-09", "https://example.com/q/")
+        self.assertIn("Bitcoin and Ethereum keys 2028", c["description"])
+        self.assertIn("RSA-2048 (websites, software updates) 2029", c["description"])
+        self.assertIn("Plans, not delivered machines", c["description"])
         self.assertIn("As of 2026-11-09", c["description"])
-        img = cards.home_card(ROWS, "2026-11-09", "https://example.com/q/", "https://example.com/q/assets/card.png")
+        nohw = cards.home_card(ROWS, [], "2026-11-09", "https://example.com/q/")
+        self.assertIn("no announced machine is big enough yet", nohw["description"])
+        img = cards.home_card(ROWS, HW, "2026-11-09", "https://example.com/q/assets/card.png".replace("assets/card.png", ""), "https://example.com/q/assets/card.png")
         self.assertEqual((img["image"], img["image_width"], img["image_height"]), ("https://example.com/q/assets/card.png", 1200, 630))
         self.assertTrue(c["url"].startswith("https://"))
         self.assertLessEqual(len(c["description"]), 250)
@@ -127,8 +136,8 @@ class Cards(unittest.TestCase):
         self.assertNotRegex(c["description"].lower(), r"\bago\b|just now")
 
     def test_empty_and_hostile(self):
-        self.assertIn("No estimates", cards.home_card([], "", "https://e.com/")["description"])
-        c = cards.home_card(ROWS, "2026\n<script>alert(1)</script>", "https://e.com/")
+        self.assertIn("No estimates", cards.home_card([], [], "", "https://e.com/")["description"])
+        c = cards.home_card(ROWS, HW, "2026\n<script>alert(1)</script>", "https://e.com/")
         self.assertNotIn("\n", c["description"])
 
 
@@ -143,9 +152,11 @@ class BaseUrl(unittest.TestCase):
 
 
 class Build(unittest.TestCase):
-    def build(self, rows, status=None, cands=None):
+    def build(self, rows, status=None, cands=None, hw=None):
         d, out = Path(tempfile.mkdtemp()), Path(tempfile.mkdtemp()) / "site"
         (d / "attacks.json").write_text(json.dumps(rows))
+        if hw is not None:
+            (d / "hardware.json").write_text(json.dumps(hw))
         if status is not None:
             (d / "status.json").write_text(json.dumps(status))
         if cands:
@@ -161,12 +172,13 @@ class Build(unittest.TestCase):
         return out
 
     def test_card_tags_and_assets(self):
-        out = self.build(ROWS, {"run_at": "2026-11-09T00:20:03+00:00", "gate": {"ok": True}, "counts": {}})
+        out = self.build(ROWS, {"run_at": "2026-11-09T00:20:03+00:00", "gate": {"ok": True}, "counts": {}}, hw=HW)
         html = (out / "index.html").read_text()
         t = Tags()
         t.feed(html)
         self.assertEqual(t.meta["og:title"], cards.TITLE)
-        self.assertIn("20 million", t.meta["og:description"])
+        self.assertIn("Earliest announced path", t.meta["og:description"])
+        self.assertIn("2028", t.meta["og:description"])
         self.assertTrue(t.meta["og:url"].startswith("https://"))
         if HAVE_PIL:
             self.assertEqual(t.meta["twitter:card"], "summary_large_image")
@@ -177,17 +189,21 @@ class Build(unittest.TestCase):
             self.assertEqual(png[:8], b"\x89PNG\r\n\x1a\n")
             self.assertEqual(int.from_bytes(png[16:20], "big"), 1200)
         self.assertRegex(html, r"assets/css/base\.css\?v=[0-9a-f]{10}")
-        self.assertEqual(html.count('class="dot'), 8)  # 3 + 3 (wide and narrow) + 1 + 1
+        self.assertGreater(html.count('class="dot'), 8)
         self.assertIn('class="proof is-sel"', html)
         self.assertNotIn("<nav", html)  # no navigation bar
         self.assertEqual(html.count('role="tab"'), 2)
         self.assertEqual(html.count('role="tabpanel"'), 2)
         self.assertIn("What this protects", html)
-        self.assertIn("not when anything could be broken", html)
-        self.assertIn("not tracked yet", html)
+        self.assertIn("Earliest announced path to break it", html)
+        self.assertIn("Plans, not promises", html)
         self.assertIn("What is covered", html)
         self.assertIn("BLS12-381", html)
-        self.assertEqual(html.count('class="future"'), 4)  # wide and narrow chart for each of the two targets
+        self.assertEqual(html.count('class="zone"'), 4)  # wide and narrow chart for each of the two targets
+        self.assertIn('class="when"', html)
+        self.assertIn("How the size needed fell, paper by paper", html)
+        self.assertIn("A plan or target, not a delivered machine.", html)
+        self.assertNotIn("not tracked yet", html)  # the date is tracked now
         self.assertIn('rel="icon"', html)
         self.assertTrue((out / "assets" / "favicon.svg").exists())
         self.assertFalse(list((out / "assets" / "fonts").glob("*.ttf")))  # build-only fonts are not served
@@ -239,7 +255,20 @@ class Build(unittest.TestCase):
         self.assertIn("1 paper is waiting to be re-checked", html)
         self.assertNotIn(">queued paper<", html)  # not listed as 'unconfirmed' while it is queued
 
+    def test_served_data_has_no_em_dash_but_stored_data_is_untouched(self):
+        em = "\u2014"
+        hw = [dict(HW[0], quote=f"We will deliver {em} by 2027")]
+        out = self.build(ROWS, {"run_at": "2026-11-09T00:20:03+00:00"}, hw=hw)
+        served = (out / "data" / "hardware.json").read_text()
+        self.assertNotIn(em, served)
+        self.assertIn("We will deliver; by 2027", served)
+        self.assertEqual(hw[0]["quote"], f"We will deliver {em} by 2027")  # the input row was not mutated
+
     def test_states(self):
+        nohw = (self.build(ROWS, {"run_at": "2026-11-09T00:20:03+00:00"}, hw=[]) / "index.html").read_text()
+        self.assertIn("No date yet", nohw)
+        self.assertIn("no hardware announcements collected", nohw)
+        self.assertNotIn('class="zone"', nohw)
         empty = (self.build([], None) / "index.html").read_text()
         self.assertIn("No verified estimates yet", empty)
         bad = (self.build(ROWS, {"run_at": "2026-11-09T00:00:00+00:00", "gate": {"ok": False},

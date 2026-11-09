@@ -8,8 +8,9 @@ import sys
 from pathlib import Path
 
 from . import cardimg, cards, chart
+from .breakdate import METRICS, earliest_path, requirement, supply_points
 from .present import (SECURES, SECURES_NOTE, TARGET_NAMES, TARGET_ORDER, clean, count, date_label, dom_id, duration, headline,
-                      label, paper_id, plain_reason, series, short_count, year_frac)
+                      label, paper_id, plain_reason, series, short_count, strip_dashes, year_frac)
 
 WEB = Path("web")
 DEFAULT_URL = "https://vic-nas.github.io/quantum/"
@@ -46,46 +47,81 @@ def head(card, css_hrefs):
 
 
 def proof(r, selected):
-    """The evidence card for one paper: what it says, in its own words."""
+    """The evidence card for one source: what it says, in its own words."""
+    hw = r.get("kind") == "hardware"
     bits = []
     if r.get("physical_qubits") is not None:
         bits.append(f'<span class="big">{e(short_count(r["physical_qubits"]))}</span> physical qubits')
     if r.get("logical_qubits") is not None:
         bits.append(f'<span class="big">{e(count(r["logical_qubits"]))}</span> error-corrected (logical) qubits')
-    run = f'<span class="run">Runs in about {e(duration(r["runtime"]))}.</span>' if r.get("runtime") is not None else ""
-    when = date_label(r.get("published", "")) or "date unknown"
+    if hw:
+        kicker = f'{e(r.get("actor"))} roadmap &middot; target year {e(int(r["target_year"]))}'
+        head_, label_, read = clean(r["title"], 160), "What the vendor's page says", "Read the vendor's page"
+        run = '<span class="run">A plan or target, not a delivered machine.</span>'
+    else:
+        kicker = f'{e(date_label(r.get("published", "")) or "date unknown")} &middot; {e(paper_id(r["id"]))}'
+        head_, label_, read = clean(r["title"], 160), "What the paper says", "Read the paper"
+        run = f'<span class="run">Runs in about {e(duration(r["runtime"]))}.</span>' if r.get("runtime") is not None else ""
     return (f'<article class="proof{" is-sel" if selected else ""}" id="{dom_id(r["id"])}">'
-            f'<p class="kicker">{e(when)} &middot; {e(paper_id(r["id"]))}</p>'
-            f'<h3>{e(clean(r["title"], 160))}</h3>'
+            f'<p class="kicker">{kicker}</p><h3>{e(head_)}</h3>'
             f'<p class="fig">{" and ".join(bits)}</p>{run}'
-            f'<p class="qlabel">What the paper says</p><blockquote>{e(clean(r["quote"], 700))}</blockquote>'
-            f'<a class="read" href="{e(r["url"])}">Read the paper</a></article>')
+            f'<p class="qlabel">{label_}</p><blockquote>{e(clean(r["quote"], 700))}</blockquote>'
+            f'<a class="read" href="{e(r["url"])}">{read}</a></article>')
 
 
-def target_section(rows, target, today=None):
-    pts = series(rows, target)
+def _words(metric):
+    return "physical qubits" if metric.startswith("phys") else "error-corrected (logical) qubits"
+
+
+def target_section(rows, hw_rows, target, today=None):
     name, _ = label(target)
     mine = [r for r in rows if r.get("target") == target]
     if not mine:
         return ""
-    best = min(pts, key=lambda p: (p["y"], -p["x"]))["row"]["id"] if pts else mine[0]["id"]
-    ordered = sorted(mine, key=lambda r: r.get("published", ""), reverse=True)
-    proofs = "".join(proof(r, r["id"] == best) for r in ordered)
-    alt = f"Qubits needed to break {name}, by paper date. Lower is closer to breaking it."
-    charts = ""
-    if pts:
-        charts = (f'<div class="chart"><div class="tl-wide">{chart.timeline_svg(pts, 640, 330, alt, today)}</div>'
-                  f'<div class="tl-narrow">{chart.timeline_svg(pts, 340, 300, alt, today)}</div>'
-                  '<p class="legend"><span class="li"><span class="k rec"></span>Set a new record</span>'
-                  '<span class="li"><span class="k"></span>Other estimates</span>'
-                  '<span class="li"><span class="k line"></span>Best known so far</span>'
-                  '<span class="li"><span class="k fut"></span>Future: when a machine this size could exist is not tracked yet</span></p></div>')
+    path = earliest_path(rows, hw_rows, target)
+    metric = path.get("metric")
+    if not metric:  # no crossing: still chart a metric that has both a requirement and announced machines
+        metric = next((m for m in METRICS if requirement(rows, target, m) and supply_points(hw_rows, m)), None)
+    pts = series(rows, target)
+    alt = f"When could {name} be broken? Announced machine sizes by year against the size needed."
+    if metric:
+        need_row = requirement(rows, target, metric)
+        sup = supply_points(hw_rows, metric)
+        by = path.get("year")
+        main = (f'<div class="chart"><div class="tl-wide">{chart.break_svg(sup, need_row, metric, by, 640, 330, alt, today or 2026.9)}</div>'
+                f'<div class="tl-narrow">{chart.break_svg(sup, need_row, metric, by, 340, 300, alt, today or 2026.9)}</div>'
+                '<p class="legend"><span class="li"><span class="k rec"></span>Largest announced so far</span>'
+                '<span class="li"><span class="k"></span>Other announced machines</span>'
+                '<span class="li"><span class="k need"></span>Size the cheapest known attack needs</span>'
+                '<span class="li"><span class="k zone"></span>An announced machine is big enough</span></p>'
+                '<p class="dim pad">Announced plans, not delivered machines. Different kinds of qubits are not strictly comparable.</p></div>')
+        default_id = (path["supply"]["id"] if by else need_row["id"])
+        sub = (f'Earliest announced path to break it: <strong>{by}</strong>. The cheapest known attack needs '
+               f'{e(short_count(path["need"]))} {_words(path["metric"])}, and {e(path["supply"]["actor"])} announced '
+               f'{e(short_count(path["supply"][path["metric"]]))} by {by}.') if by else (
+               f'No date: {e(path["reason"])}.')
     else:
-        charts = '<div class="chart"><p class="dim">No estimate here states physical qubits, so there is nothing to chart yet.</p></div>'
+        main = ('<div class="chart"><p class="dim pad">No vendor announcement in the same kind of qubit has been collected yet, so a break date cannot be '
+                'drawn. The dots below show how small the published attacks have become.</p></div>')
+        default_id = mine[0]["id"]
+        sub = f'No date: {e(path["reason"])}.'
+    hist = ""
+    if pts:
+        h_alt = f"Qubits needed to break {name}, by paper date."
+        hist = ('<details class="history"><summary>How the size needed fell, paper by paper</summary>'
+                f'<div class="chart"><div class="tl-wide">{chart.timeline_svg(pts, 640, 330, h_alt, today)}</div>'
+                f'<div class="tl-narrow">{chart.timeline_svg(pts, 340, 300, h_alt, today)}</div>'
+                '<p class="legend"><span class="li"><span class="k rec"></span>Set a new record</span>'
+                '<span class="li"><span class="k"></span>Other estimates</span>'
+                '<span class="li"><span class="k line"></span>Best known so far</span></p>'
+                '<p class="dim pad">Here the dates are when each paper was published, not when anything could be broken.</p></div></details>')
+    ordered = sorted(mine, key=lambda r: r.get("published", ""), reverse=True)
+    hw_used = [h for h in hw_rows if h.get(metric or "physical_qubits") is not None] if metric else []
+    proofs = "".join(proof(r, r["id"] == default_id) for r in ordered + sorted(hw_used, key=lambda h: h.get("target_year", 0)))
     also = [r for r in ordered if r.get("physical_qubits") is None]
     also_html = ""
-    if also:
-        also_html = ('<p class="also"><span>Also published, not on the chart (counts error-corrected qubits only):</span> ' + " ".join(
+    if also and any(r.get("logical_qubits") is not None for r in also):
+        also_html = ('<p class="also"><span>Also published (counts error-corrected qubits only):</span> ' + " ".join(
             f'<a href="#{dom_id(r["id"])}" data-id="{dom_id(r["id"])}">{e(count(r["logical_qubits"]))} logical, {e(date_label(r.get("published", ""), True))}</a>'
             for r in also if r.get("logical_qubits") is not None) + "</p>")
     secures = "".join(f"<li><strong>{e(a)}</strong><span>{e(b)}</span></li>" for a, b in SECURES.get(target, []))
@@ -93,28 +129,30 @@ def target_section(rows, target, today=None):
                     f'<p class="dim">{e(SECURES_NOTE)}</p></div>') if secures else ""
     pname, tech = TARGET_NAMES.get(target, (name, name))
     return (f'<section class="target" id="t-{e(target)}" role="tabpanel" aria-labelledby="tab-{e(target)}">'
-            f'<header><h2>{e(pname)}</h2><p>Secured by {e(tech)}. Each dot is an estimate, from one paper, of the quantum computer size needed to break it. Dates are when the paper was published, not when anything could be broken.</p></header>'
-            f'<div class="viz">{charts}<aside class="proofs" aria-live="polite">{proofs}</aside></div>{also_html}{secures_html}</section>')
+            f'<header><h2>{e(pname)}</h2><p>Secured by {e(tech)}. {sub}</p></header>'
+            f'<div class="viz">{main}<aside class="proofs" aria-live="polite">{proofs}</aside></div>{hist}{also_html}{secures_html}</section>')
 
 
-def tiles(rows, targets):
+def tiles(rows, hw_rows, targets):
     out = []
     for n, t in enumerate(targets):
-        h = headline(rows, t)
         pname, tech = TARGET_NAMES.get(t, label(t))
-        if not h:
-            continue
-        now = short_count(h["best"]["y"])
-        if h["first"] is not h["best"]:
-            nums = (f'<span class="was">{e(short_count(h["first"]["y"]))}</span><span class="arrow" aria-label="down to">&rarr;</span>'
-                    f'<span class="now">{e(now)}</span>')
-            cap = (f'qubits needed, {e(date_label(h["first"]["date"], True))} to {e(date_label(h["best"]["date"], True))}'
-                   f' ({h["drop_pct"]:g}% smaller)')
+        path = earliest_path(rows, hw_rows, t)
+        h = headline(rows, t)
+        if path.get("year"):
+            nums = f'<span class="now">{path["year"]}</span>'
+            cap = "earliest announced path to break it"
+            more = (f'Needs {e(short_count(path["need"]))} {_words(path["metric"])}; {e(path["supply"]["actor"])} '
+                    f'plans {e(short_count(path["supply"][path["metric"]]))} by {path["year"]}')
         else:
-            nums, cap = f'<span class="now">{e(now)}</span>', f'qubits needed, {e(date_label(h["best"]["date"], True))}'
+            nums = '<span class="now none">No date yet</span>'
+            cap, more = e(path["reason"]), ""
+        fell = (f'Size needed fell {h["drop_pct"]:g}%, {e(date_label(h["first"]["date"], True))} to {e(date_label(h["best"]["date"], True))}'
+                if h and h["first"] is not h["best"] else "")
         out.append(f'<a class="hl{" is-active" if n == 0 else ""}" id="tab-{e(t)}" role="tab" href="#t-{e(t)}" data-tab="t-{e(t)}" '
                    f'aria-selected="{"true" if n == 0 else "false"}"><span class="what">{e(pname)}</span><span class="tech">{e(tech)}</span>'
-                   f'<span class="nums">{nums}</span><span class="cap">{cap}</span></a>')
+                   f'<span class="nums">{nums}</span><span class="cap">{cap}</span>'
+                   f'{f"<span class=cap>{more}</span>" if more else ""}{f"<span class=cap>{fell}</span>" if fell else ""}</a>')
     return "".join(out)
 
 
@@ -148,13 +186,17 @@ def build(out="site", data="data"):
         (hrefs if rel.endswith(".css") else scripts).append(f"assets/{rel}?v={hashlib.sha256(body).hexdigest()[:10]}")
     for f in ("attacks.json", "hardware.json", "status.json", "queue.json"):
         src = data / f
-        (out / "data" / f).write_text(src.read_text() if src.exists() else "[]")
+        raw = json.loads(src.read_text()) if src.exists() else []
+        if isinstance(raw, list):  # the served copy has dashes removed from quoted text; the stored data stays verbatim
+            raw = [{k: (strip_dashes(v) if k in ("quote", "title") else v) for k, v in r.items()} if isinstance(r, dict) else r for r in raw]
+        (out / "data" / f).write_text(json.dumps(raw, indent=1))
     (out / ".nojekyll").write_text("")
     rows = json.loads((out / "data" / "attacks.json").read_text())
+    hw_rows = json.loads((out / "data" / "hardware.json").read_text() or "[]")
     st = json.loads((data / "status.json").read_text()) if (data / "status.json").exists() else {}
     as_of = (st.get("run_at") or "")[:10]
-    has_img = cardimg.render(rows, as_of, out / "assets" / "card.png", WEB / "fonts", base_url().split("//", 1)[-1].rstrip("/"))
-    card = cards.home_card(rows, as_of, base_url(), base_url() + "assets/card.png" if has_img else None)
+    has_img = cardimg.render(rows, hw_rows, as_of, out / "assets" / "card.png", WEB / "fonts", base_url().split("//", 1)[-1].rstrip("/"))
+    card = cards.home_card(rows, hw_rows, as_of, base_url(), base_url() + "assets/card.png" if has_img else None)
     gate_ok = (st.get("gate") or {}).get("ok", True)
     problems = list((st.get("source_errors") or {}).items())
     alert = ""
@@ -174,7 +216,7 @@ def build(out="site", data="data"):
                           for r in radar) + "</ul>") if radar else ""
         radar_html = (f'<details class="radar"><summary>Found but not confirmed ({len(radar)}'
                       f'{f", {len(queued)} waiting" if queued else ""})</summary>{waiting}{listed}</details>')
-    body = "".join(target_section(rows, t, year_frac(as_of)) for t in present) if rows else (
+    body = "".join(target_section(rows, hw_rows, t, year_frac(as_of)) for t in present) if rows else (
         '<p class="empty">No verified estimates yet. The first update has not stored any.</p>')
     updated = date_label(as_of) or "not yet"
     page = f"""<!doctype html>
@@ -185,18 +227,19 @@ def build(out="site", data="data"):
 <header class="bar"><span class="brand"><img src="assets/favicon.svg" alt="" width="22" height="22">Quantum threat tracker</span><span class="upd">Updated {e(updated)}</span></header>
 <main class="page">
 <section class="hero"><h1>How close is quantum computing to breaking today's encryption?</h1>
-<p class="lede">Today's security holds because nobody can build a big enough quantum computer. Researchers keep publishing smaller
-designs. Each dot is one paper's estimate of the machine size needed, and lower means easier to attack. This does not say <em>when</em>
-such a machine will exist; that part is not tracked yet. Pick what you care about, then click any dot to read the paper's own words.</p>
-<div class="hls" role="tablist" aria-label="What to look at">{tiles(rows, present)}</div></section>
+<p class="lede">Today's security holds because nobody has built a quantum computer big enough. This page compares two things: the machine
+size the cheapest published attack needs, and the machines vendors say they will build. Where they meet is the earliest announced
+path to a break. Those are plans, not delivered machines. Pick what you care about, then click any dot to read the source's own words.</p>
+<div class="hls" role="tablist" aria-label="What to look at">{tiles(rows, hw_rows, present)}</div></section>
 {alert}{body}
 <section class="notes"><h2>How to read this</h2>
 <dl><div><dt>Qubit</dt><dd>The basic unit of a quantum computer, like a bit in an ordinary one. Breaking encryption takes many of them working together.</dd></div>
 <div><dt>Physical vs. error-corrected</dt><dd>A physical qubit is one real piece of hardware. Error-corrected (logical) qubits are built from many physical ones, so they are not comparable with the charted numbers.</dd></div>
 <div><dt>What is covered</dt><dd>So far: RSA-2048, and 256-bit elliptic curves (Bitcoin and Ethereum's secp256k1, P-256, Curve25519 and Ed25519, treated as one group). Also broken by a large enough quantum computer but not charted yet: other RSA sizes and curves, finite-field Diffie-Hellman, and the pairing curves BLS12-381 and BN254 (Ethereum validators, zero-knowledge proofs). Ciphers like AES and hashes like SHA-256 are only weakened, not broken.</dd></div>
-<div><dt>Not a countdown</dt><dd>This shows how big a machine would have to be. It does not yet track how big machines are today, so it cannot say when. Each paper assumes its own kind of hardware, so look at the trend and not at exact comparisons.</dd></div></dl></section>
+<div><dt>Plans, not promises</dt><dd>Dates come from the vendors' own roadmaps, which can slip or be missed. The page never shows a date earlier than something publicly announced, so it is a pessimistic reading, not a prediction.</dd></div>
+<div><dt>Not an exact match</dt><dd>The attack designs assume particular hardware, and vendors build different kinds of qubits, so the match is a headline and not a guarantee. Read the quotes. Only vendor pages that could be read automatically are included so far; Google's roadmap page is not.</dd></div></dl></section>
 {radar_html}
-<footer><span>Figures are sentences quoted from each paper and checked against its text. The descriptions of what each algorithm protects are written by hand.</span><a href="data/attacks.json">Raw data</a></footer>
+<footer><span>Figures are sentences quoted from each paper or vendor page and checked against its text. The descriptions of what each algorithm protects are written by hand.</span><a href="data/attacks.json">Raw data</a></footer>
 </main>{"".join(f'<script src="{e(s)}" defer></script>' for s in scripts)}</body></html>"""
     (out / "index.html").write_text(page)
     return out
