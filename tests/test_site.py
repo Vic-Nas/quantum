@@ -193,24 +193,27 @@ class Build(unittest.TestCase):
 
     def countdown(self, html):
         out = []
-        for block in re.findall(r'<a class="row[^"]*".*?</a>', html, re.S):
+        for block in re.findall(r'<button class="row[^"]*".*?</button>', html, re.S):
             title = re.search(r"<strong>(.*?)</strong>", block).group(1)
             year = re.search(r"<b>(.*?)</b>", block) or re.search(r'class="safe">(.*?)<', block)
             out.append((title, year.group(1) if year else ""))
         return out
 
-    def test_detail_cards_below_countdown(self):
+    def test_side_nav_with_detail_panels(self):
         out = self.build(ROWS, STATUS, hw=HW)
         html = (out / "index.html").read_text()
-        self.assertIn('class="details"', html)
-        self.assertIn('class="detail"', html)
+        self.assertIn('class="d-nav"', html)
+        self.assertIn('class="d-panels"', html)
+        self.assertIn('class="detail active"', html)
         self.assertIn("Where you meet it", html)
         self.assertIn("If it breaks", html)
         self.assertIn("The cheapest published attack needs", html)
         self.assertIn("Read the paper", html)
         self.assertNotIn('role="dialog"', html)
-        self.assertNotIn("data-open", html)
-        self.assertNotIn("data-close", html)
+        nav_tabs = re.findall(r'data-tab="([^"]+)"', html)
+        panel_ids = re.findall(r'<section class="detail[^"]*" id="([^"]+)"', html)
+        for pid in panel_ids:
+            self.assertIn(pid, nav_tabs)
 
     def test_front_page_answers_the_bitcoin_question_first(self):
         proxy = row("2610.37839", "dlp-ff-512", "2026-10-27", physical_qubits=6656.0)
@@ -222,13 +225,12 @@ class Build(unittest.TestCase):
         self.assertEqual(dict(rows)["Older VPN and SSH setups"], "2027 or later")
         self.assertEqual(dict(rows)["Disk encryption and passwords"], "Safe in practice")
 
-    def test_countdown_rows_link_to_detail_sections(self):
+    def test_countdown_rows_activate_detail_panels(self):
         html = (self.build(ROWS, STATUS, hw=HW) / "index.html").read_text()
-        hrefs = re.findall(r'<a class="row[^"]*" href="(#[^"]+)"', html)
-        self.assertTrue(hrefs)
-        for href in hrefs:
-            self.assertTrue(href.startswith("#d-"))
-            self.assertIn(f'id="{href[1:]}"', html)
+        cd_tabs = re.findall(r'<button class="row[^"]*" data-tab="([^"]+)"', html)
+        self.assertTrue(cd_tabs)
+        for tab_id in cd_tabs:
+            self.assertIn(f'id="{tab_id}"', html)
 
     def test_tech_chart_collapsed_by_default(self):
         html = (self.build(ROWS, STATUS, hw=HW) / "index.html").read_text()

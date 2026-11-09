@@ -1,4 +1,4 @@
-/* Front page: countdown bars, then one detail card per threat, then a collapsed technical chart. */
+/* Front page: countdown bars, then a side-nav + detail panel for each threat. */
 .page{padding-bottom:20px}
 .hero{padding:16px 0 10px}
 .hero h1{margin:0;font-size:clamp(24px,2.9vw,34px);line-height:1.1;font-weight:650;letter-spacing:-.03em}
@@ -13,7 +13,7 @@
 .cd .axis .track::before{content:"Today";position:absolute;left:6px;top:0;font-size:12px;color:var(--ink-dim)}
 .cd .yr{position:absolute;top:0;transform:translateX(-50%);font-size:12.5px;font-weight:600;color:var(--ink-dim);font-variant-numeric:tabular-nums}
 .cd .row{align-items:center;min-height:58px;padding:0;border:0;border-top:1px solid var(--rule);background:none;text-align:left;font:inherit;color:inherit;cursor:pointer;text-decoration:none;
-  transition:background .12s}
+  transition:background .12s;width:100%}
 .cd .row:hover,.cd .row:focus-visible{background:var(--hover)}
 .cd .row.first{min-height:78px}
 .cd .who{display:flex;flex-direction:column;gap:1px;padding:6px 0}
@@ -31,11 +31,22 @@
   color:var(--ok);font-size:13.5px;font-weight:600;white-space:nowrap}
 .cd .foot{margin:6px 0 0;padding-top:7px;border-top:1px solid var(--rule);font-size:12.5px;color:var(--ink-dim)}
 
-/* Detail cards */
-.details{display:flex;flex-direction:column;gap:14px;margin-top:18px}
-.detail{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 22px;scroll-margin-top:14px;
-  transition:border-color .4s}
-.detail.hl{border-color:var(--accent);transition:none}
+/* Details: side nav + panel */
+.details{display:grid;grid-template-columns:180px 1fr;gap:0;margin-top:18px;background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;
+  height:clamp(380px, calc(100vh - 580px), 520px)}
+.d-nav{display:flex;flex-direction:column;border-right:1px solid var(--rule);background:var(--panel);padding:6px 0}
+.dn-item{display:flex;align-items:center;justify-content:space-between;gap:6px;width:100%;padding:10px 14px;border:0;border-left:3px solid transparent;background:none;text-align:left;font:inherit;color:var(--ink-dim);cursor:pointer;transition:background .12s,color .12s}
+.dn-item:hover{background:var(--hover);color:var(--ink)}
+.dn-item.active{border-left-color:var(--accent);background:var(--surface);color:var(--ink);font-weight:600}
+.dn-name{font-size:13.5px;line-height:1.3;overflow:hidden;text-overflow:ellipsis}
+.dn-tag{font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;flex-shrink:0}
+.dn-tag.dated{color:var(--accent)}
+.dn-tag.warn{color:var(--accent);opacity:.7}
+.dn-tag.safe{color:var(--ok)}
+
+.d-panels{overflow-y:auto}
+.detail{display:none;padding:20px 24px}
+.detail.active{display:block}
 .d-top{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .d-top h2{margin:0;font-size:17px;font-weight:650;letter-spacing:-.02em}
 .d-badge{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -102,6 +113,10 @@
   .cd .row{grid-template-columns:1fr;gap:0}.cd .row .who{padding-bottom:2px}.cd .track{border-left:0;height:48px}
   .cd .track .gl{display:none}
   .tl-wide{display:none}.tl-narrow{display:block}
+  .details{grid-template-columns:1fr;min-height:auto}
+  .d-nav{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--rule);padding:0}
+  .dn-item{border-left:0;border-bottom:3px solid transparent;padding:8px 12px;flex-shrink:0}
+  .dn-item.active{border-left-color:transparent;border-bottom-color:var(--accent)}
   .d-grid{grid-template-columns:1fr}
   .d-grid>div+div{margin-top:10px}
 }

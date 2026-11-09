@@ -110,18 +110,19 @@ def countdown_html(crows, today):
             track = f'<span class="bar" style="width:{end:.2f}%"><b>{r["year"]}{" or later" if r["proxy"] else ""}</b></span>'
         else:
             track = '<span class="safe">No announced machine is big enough yet</span>'
-        rows.append(f'<a class="row{" first" if n == 0 else ""}" href="#{cid}">'
+        rows.append(f'<button class="row{" first" if n == 0 else ""}" data-tab="{cid}" type="button">'
                     f'<span class="who"><strong>{e(r["title"])}</strong><small>{e(r["what"])}</small></span>'
-                    f'<span class="track">{grid}{track}</span></a>')
+                    f'<span class="track">{grid}{track}</span></button>')
     return (f'<section class="cd" aria-label="When it could break"><div class="axis"><span class="who"></span>'
             f'<span class="track">{ticks}</span></div>{"".join(rows)}'
             '<p class="foot">Each bar runs from today to the earliest year a vendor has announced a machine big enough. '
             'Plans, not delivered machines.</p></section>')
 
 
-def detail_card(crow):
+def detail_card(crow, active=False):
     """One detail section for a countdown row: threat, source paper, and impact."""
     cid = f"d-{dom_id(crow['id'])}"
+    vis = " active" if active else ""
 
     if crow["safe"]:
         badge_text = "Safe in practice"
@@ -136,7 +137,7 @@ def detail_card(crow):
         badge_text = ""
         badge_cls = "warn"
 
-    top = (f'<section class="detail" id="{cid}">'
+    top = (f'<section class="detail{vis}" id="{cid}">'
            f'<div class="d-top"><h2>{e(crow["title"])}</h2>'
            f'<span class="d-badge {badge_cls}">{e(badge_text)}</span></div>'
            f'<p class="d-what">{e(crow["what"])}</p>')
@@ -146,8 +147,8 @@ def detail_card(crow):
 
     if crow["safe"]:
         parts = [CONSEQUENCE.get(ln["target"], "") for ln in crow["lines"]]
-        explain = "</p><p class=\"d-explain\">".join(x for x in parts if x)
-        return (f'{top}<p class="d-explain">{e(explain)}</p>'
+        explain = "".join(f'<p class="d-explain">{e(x)}</p>' for x in parts if x)
+        return (f'{top}{explain}'
                 f'<h4>Where you meet it</h4><ul>{algos}</ul></section>')
 
     dated = [ln for ln in crow["lines"] if ln.get("year")]
@@ -254,10 +255,30 @@ def build(out="site", data="data"):
 
     crows = countdown_rows(lines)
     cd = countdown_html(crows, today)
-    details = "".join(detail_card(crow) for crow in crows)
     tech = tech_chart_html(lines, narrow_lines, phys, logi, today, alt)
 
-    body = (cd + f'<div class="details">{details}</div>' + tech) if lines else '<p class="empty">No verified estimates yet. The first update has not stored any.</p>'
+    if crows:
+        nav_items = []
+        panels = []
+        for n, crow in enumerate(crows):
+            cid = f"d-{dom_id(crow['id'])}"
+            active = " active" if n == 0 else ""
+            if crow["safe"]:
+                tag = '<span class="dn-tag safe">Safe</span>'
+            elif crow["year"]:
+                yr = f'{crow["year"]}{"+" if crow.get("proxy") else ""}'
+                tag = f'<span class="dn-tag dated">{e(yr)}</span>'
+            else:
+                tag = '<span class="dn-tag warn">TBD</span>'
+            short = crow["title"].split(" and ")[0].split(",")[0]
+            nav_items.append(f'<button class="dn-item{active}" data-tab="{cid}" type="button">'
+                             f'<span class="dn-name">{e(short)}</span>{tag}</button>')
+            panels.append(detail_card(crow, active=n == 0))
+        nav = f'<nav class="d-nav" aria-label="Threats">{"".join(nav_items)}</nav>'
+        details = f'<div class="details" id="details">{nav}<div class="d-panels">{"".join(panels)}</div></div>'
+        body = cd + details + tech
+    else:
+        body = '<p class="empty">No verified estimates yet. The first update has not stored any.</p>'
 
     queued = json.loads((data / "queue.json").read_text()) if (data / "queue.json").exists() else {}
     queued_ids = {k.rsplit("@", 1)[0] for k in queued}
