@@ -72,7 +72,7 @@ jobs:
         if: steps.mode.outputs.cmd != 'none'
         run: python -m qtd pq | tee pq_out.json
       - name: Re-read fact sources (service status, exposed funds)
-        if: steps.mode.outputs.cmd != 'none'   # unchanged pages cost no model calls; a changed page costs two
+        if: steps.mode.outputs.cmd == 'run'
         run: |
           python -m qtd facts | tee facts_out.json
           { echo '### qtd facts'; echo '```json'; cat facts_out.json; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

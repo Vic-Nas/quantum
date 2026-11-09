@@ -1,7 +1,7 @@
 import argparse
 import json
 
-from . import evaluate, facts, llm, pipeline, pq_releases
+from . import evaluate, facts, pipeline, pq_releases
 
 ap = argparse.ArgumentParser(prog="qtd")
 sub = ap.add_subparsers(dest="cmd", required=True)
@@ -29,7 +29,6 @@ elif a.cmd == "retry":
 elif a.cmd == "seed":
     print(json.dumps(pipeline.seed(), indent=1))
 elif a.cmd == "facts":
-    llm.set_run_budget(pipeline.RETRY_CALL_BUDGET)
     print(json.dumps(facts.run(), indent=1))
 elif a.cmd == "pq":
     print(json.dumps(pq_releases.run(), indent=1))
