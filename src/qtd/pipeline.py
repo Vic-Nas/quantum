@@ -304,6 +304,7 @@ def run_hardware(items: list | None = None, dry: bool = False, only: list | None
     pending = {p["id"]: p for p in _load(DATA / "hw_pending.json", [])}  # pages whose models failed: the frequent run retries them
     rows = _load(DATA / "hardware.json", [])
     known = {_hw_key(r) for r in rows}
+    by_key = {_hw_key(r): r for r in rows}
     summary = {"pages": len(items), "changed": 0, "applied": 0, "held": 0, "unavailable": 0, "errors": errors}
     new = []
     for it in items:
@@ -334,6 +335,10 @@ def run_hardware(items: list | None = None, dry: bool = False, only: list | None
         pending.pop(it["id"], None)
         for n, f in enumerate(dedupe_estimates(found)):
             if _hw_key(f["values"]) in known:
+                row = by_key.get(_hw_key(f["values"]))  # same claim: add a month the first reading did not have, from the same quote
+                if row and f["values"].get("target_month") and not row.get("target_month") and f["quote"] == row.get("quote"):
+                    row["target_month"] = f["values"]["target_month"]
+                    summary["month_added"] = summary.get("month_added", 0) + 1
                 continue
             known.add(_hw_key(f["values"]))
             vals = {k: (round(v, 6) if isinstance(v, float) else v) for k, v in f["values"].items()}

@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 from . import cardimg, cards, chart
-from .breakdate import METRICS, earliest_path, requirement, supply_points
+from .breakdate import METRICS, earliest_path, pos, requirement, supply_points
 from .present import (GLOSSARY, datetime_label, ALGORITHMS, ALGORITHMS_NOTE, CHART_GROUPS, CONSEQUENCE, COUNTDOWN,
                       PROXY_TARGETS, SECURES, SECURES_NOTE, SERVICES, clean, count,
                       date_label, dom_id, duration, headline, label, paper_id,
@@ -134,15 +134,17 @@ def chart_lines(rows, hw_rows, narrow=False):
             continue
         need_row = requirement(rows, target, metric)
         year, practical = path.get("year"), status == "broken"
+        when_label = year_label(year, path.get("month")) if year else ""
         if not practical:
             when = "not practical"
         elif year:
-            when = f"{year} or later" if target in PROXY_TARGETS else str(year)
+            when = f"{when_label} or later" if target in PROXY_TARGETS else when_label
         else:
             when = "none announced"
         size = short_count(need_row[metric])
         out.append({"id": dom_id(need_row["id"]), "name": name, "need": need_row[metric], "metric": metric, "year": year,
                     "practical": practical, "when": when, "who": who, "target": target, "row": need_row, "path": path,
+                    "due": path.get("when"), "month": path.get("month"), "x": pos(path["supply"]) if path.get("supply") else None,
                     "sub": when if narrow else f"{size} {_words(metric)} · {when}"})
     return out
 
@@ -156,8 +158,10 @@ def countdown_rows(lines):
             continue
         dated = [ln for ln in mine if ln["practical"] and ln["year"]]
         proxy = any(ln["target"] in PROXY_TARGETS for ln in dated)
+        first = min(dated, key=lambda ln: ln["due"], default=None)
         out.append({"title": title, "what": what, "id": mine[0]["id"],
-                    "year": min((ln["year"] for ln in dated), default=None),
+                    "year": first["year"] if first else None, "due": first["due"] if first else None,
+                    "label": year_label(first["year"], first["month"]) if first else None,
                     "safe": not any(ln["practical"] for ln in mine), "proxy": proxy,
                     "waiting": any(ln["practical"] for ln in mine) and not dated,
                     "lines": mine, "slug": page_slug(title)})
@@ -182,24 +186,32 @@ def radar_rows(path):
 # HTML fragments
 # ---------------------------------------------------------------------------
 
+def _due(r):
+    return r.get("due") or r["year"] + 1.0
+
+
+def _label(r):
+    return r.get("label") or str(r["year"])
+
+
 def countdown_html(crows, today):
-    years = [r["year"] for r in crows if r["year"]]
-    if not years:
+    dues = [_due(r) for r in crows if r["year"]]
+    if not dues:
         return ""
-    x0, x1 = today, max(years) + 1.0
+    x0, x1 = today, max(dues)
     pct = lambda x: 100 * (x - x0) / (x1 - x0)
     ticks = "".join(f'<span class="yr" style="left:{pct(y + 0.5):.2f}%">{y}</span>'
-                    for y in range(int(x0), int(x1)) if y + 0.5 > x0)
+                    for y in range(int(x0), math.ceil(x1)) if x0 < y + 0.5 <= x1)
     grid = "".join(f'<i class="gl" style="left:{pct(y):.2f}%"></i>'
-                   for y in range(int(x0) + 1, int(x1) + 1) if x0 < y < x1)
+                   for y in range(int(x0) + 1, math.ceil(x1) + 1) if x0 < y < x1)
     rows_html = []
     for n, r in enumerate(crows):
         href = f"threats/{r['slug']}/"
         if r["safe"]:
             track = '<span class="safe">Safe in practice</span>'
         elif r["year"]:
-            end = pct(r["year"] + 1.0)
-            track = f'<span class="bar" style="width:{end:.2f}%"><b>{r["year"]}{" or later" if r["proxy"] else ""}</b></span>'
+            end = pct(_due(r))
+            track = f'<span class="bar" style="width:{end:.2f}%"><b>{e(_label(r))}{" or later" if r["proxy"] else ""}</b></span>'
         else:
             track = '<span class="safe">No announced machine is big enough yet</span>'
         rows_html.append(
@@ -208,7 +220,7 @@ def countdown_html(crows, today):
             f'<span class="track">{grid}{track}</span></a>')
     return (f'<section class="cd" aria-label="When it could break"><div class="axis"><span class="who"></span>'
             f'<span class="track">{ticks}</span></div>{"".join(rows_html)}'
-            '<p class="foot">Each bar runs from today to the earliest year a vendor has announced a machine big enough. '
+            '<p class="foot">Each bar runs from today to the earliest date a vendor has announced a machine big enough. '
             'Plans, not delivered machines.</p></section>')
 
 
@@ -218,7 +230,7 @@ def threat_grid_html(crows):
         if crow["safe"]:
             badge = '<span class="tc-badge safe">Safe in practice</span>'
         elif crow["year"]:
-            yr = f'{crow["year"]}{"+" if crow.get("proxy") else ""}'
+            yr = f'{_label(crow)}{"+" if crow.get("proxy") else ""}'
             badge = f'<span class="tc-badge dated">{e(yr)}</span>'
         else:
             badge = '<span class="tc-badge warn">TBD</span>'
@@ -329,7 +341,7 @@ def stats_html(crow, rows):
     primary = None
     if not crow["safe"]:
         dated = [ln for ln in crow["lines"] if ln.get("year")]
-        primary = min(dated, key=lambda l: l["year"]) if dated else crow["lines"][0]
+        primary = min(dated, key=lambda l: l["due"]) if dated else crow["lines"][0]
     else:
         primary = crow["lines"][0]
     metric, row = primary["metric"], primary["row"]
@@ -386,7 +398,7 @@ def breaks_for(hw, lines):
 
 def vendor_timeline_html(actor, entries, lines=()):
     steps, known = [], set()
-    for entry in sorted(entries, key=lambda x: x.get("target_year", 0)):
+    for entry in sorted(entries, key=lambda x: (x.get("target_year", 0), x.get("target_month") or 13)):
         yr = int(entry["target_year"])
         yl = year_label(yr, entry.get("target_month"))
         pq, lq = short_count(entry.get("physical_qubits")), short_count(entry.get("logical_qubits"))
@@ -419,7 +431,7 @@ def services_html(crows, pq_overrides=None, facts=None):
     facts = facts or {}
     slug_year = {}
     for crow in crows:
-        yr = crow["year"]
+        yr = _label(crow) if crow["year"] else None
         slug_year[crow["slug"]] = (yr, crow["safe"], crow.get("proxy"))
     items = []
     for name, note, slug, pq, detail in SERVICES:
@@ -479,7 +491,7 @@ def threat_body(crow, rows, hw_rows, depth, facts=None, today=None):
     if crow["safe"]:
         badge = '<span class="d-badge safe">Safe in practice</span>'
     elif crow["year"]:
-        yr = f'{crow["year"]}{"+" if crow.get("proxy") else ""}'
+        yr = f'{_label(crow)}{"+" if crow.get("proxy") else ""}'
         badge = f'<span class="d-badge dated">{e(yr)}</span>'
     elif crow.get("waiting"):
         badge = '<span class="d-badge warn">No machine announced yet</span>'
@@ -517,7 +529,7 @@ def threat_body(crow, rows, hw_rows, depth, facts=None, today=None):
     source = ""
     if not crow["safe"]:
         dated = [ln for ln in crow["lines"] if ln.get("year")]
-        primary = min(dated, key=lambda l: l["year"]) if dated else crow["lines"][0]
+        primary = min(dated, key=lambda l: l["due"]) if dated else crow["lines"][0]
         r = primary["row"]
         kicker = f'{e(date_label(r.get("published", "")) or "date unknown")} · {e(paper_id(r["id"]))}'
         source = (f'<details class="d-source"><summary>The paper behind the smallest figure</summary>'

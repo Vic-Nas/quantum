@@ -69,7 +69,8 @@ HARDWARE_PROMPT = """Extract quantum computer hardware plans and claims from the
 - Emit one estimate per claim that states BOTH a qubit count AND a year. Omit anything missing either.
 - Each estimate has:
   quote: ONE contiguous passage copied verbatim from the text (at most two sentences) that contains the year and the numbers.
-  fields: name/value pairs copied as written: physical_qubits, logical_qubits, target_year (for example 2029).
+  fields: name/value pairs copied as written: physical_qubits, logical_qubits, target_year (for example 2029),
+          and target_month only when the text names the month next to that year (for example June), never inferred.
 - Use kind "hardware". If nothing qualifies, kind "none" with no estimates.
 
 TITLE: {title}

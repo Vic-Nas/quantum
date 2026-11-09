@@ -1,7 +1,7 @@
 """Code-only verification. Each estimate is one verbatim quote plus fields found inside it."""
 from .schema import CORE, FIELDS, MAX_QUOTE
-from .textutil import (TARGET_IDS, all_targets, bits_row_for, canonical_target, infer_table_target, norm, number_followed_by,
-                       numbers_in, parse_hours, parse_number, repair_quote)
+from .textutil import (TARGET_IDS, all_targets, bits_row_for, canonical_target, infer_table_target, month_in_quote, norm,
+                       number_followed_by, numbers_in, parse_hours, parse_number, repair_quote)
 
 
 def _close(a, b, rel=1e-9):
@@ -37,6 +37,8 @@ def verify_estimate(kind: str, est: dict, src: str, allowlisted: bool = True, de
             checks[f"{name}:known_field"] = False
             continue
         ftype, lo, hi = spec[name]
+        if ftype == "month":  # needs the year, so it is settled after the loop; a month that does not check out is simply left out
+            continue
         if ftype == "target":
             canon = canonical_target(raw) or (str(raw).strip().lower() if str(raw).strip().lower() in TARGET_IDS else None)
             checks[f"{name}:in_quote"] = canon is not None and (canon in all_targets(quote) or bits_row_for(canon, quote, context))
@@ -62,6 +64,10 @@ def verify_estimate(kind: str, est: dict, src: str, allowlisted: bool = True, de
             if name == "physical_qubits" and val is not None:  # ... and not 'physical' when the source calls it logical
                 checks[f"{name}:not_logical"] = not number_followed_by(quote, val, r"(?:error[\s-]corrected\s+)?logical")
             values[name] = val
+    if "target_month" in fields and values.get("target_year") is not None:
+        month = month_in_quote(str(fields["target_month"]), int(values["target_year"]), quote)
+        if month:
+            values["target_month"] = month
     # A figure that fails is dropped, never allowed to sink the estimate (dropping loses information, it cannot invent any).
     # The algorithm itself (target or actor) is the exception: if that fails the estimate is rejected.
     for name in [n for n in list(values) if n not in ("target", "actor")]:
@@ -94,7 +100,7 @@ def verify(extraction: dict, source_text: str, allowlisted: bool = True, default
 
 def agree(a: dict, b: dict) -> bool:
     """Two value dicts agree if they share a core field and every shared field matches."""
-    shared = set(a) & set(b)
+    shared = (set(a) & set(b)) - {"target_month"}  # the month is checked against the quote by code, so models need not agree on it
     # Need the same subject AND at least one measured field in common, or agreement is vacuous.
     if not ({"target", "actor"} & shared) or len(shared) < 2:
         return False

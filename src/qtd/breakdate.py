@@ -14,10 +14,23 @@ def requirement(rows, target, metric):
     return min(cands, key=lambda r: (r[metric], r.get("published", ""))) if cands else None
 
 
+def when(h) -> float:
+    """When a machine is due, as a year fraction: the end of its month, or the end of its year if no month is given."""
+    month = h.get("target_month")
+    return int(h["target_year"]) + (int(month) / 12 if month else 1.0)
+
+
+def pos(h) -> float:
+    """Where to draw a machine on a time axis: the middle of its month, or the middle of its year."""
+    month = h.get("target_month")
+    return int(h["target_year"]) + ((int(month) - 0.5) / 12 if month else 0.5)
+
+
 def earliest_path(attack_rows, hardware_rows, target):
     """Earliest announced path to break `target`, or a dict explaining why there is none.
 
-    Returns {'year', 'metric', 'need', 'demand', 'supply'} or {'year': None, 'reason': ...}.
+    Returns {'year', 'month', 'when', 'metric', 'need', 'demand', 'supply'} or {'year': None, 'reason': ...}.
+    `when` is the due date as a year fraction (the month is used when the source gives one).
     Physical-qubit figures from different hardware types are not strictly comparable; the caller shows that caveat.
     """
     best, any_need = None, False
@@ -30,9 +43,11 @@ def earliest_path(attack_rows, hardware_rows, target):
               and h[metric] >= need[metric]]
         if not ok:
             continue
-        h = min(ok, key=lambda r: (r["target_year"], r[metric]))
-        cand = {"year": int(h["target_year"]), "metric": metric, "need": need[metric], "demand": need, "supply": h}
-        if best is None or cand["year"] < best["year"]:
+        h = min(ok, key=lambda r: (when(r), r[metric]))
+        month = h.get("target_month")
+        cand = {"year": int(h["target_year"]), "month": int(month) if month else None, "when": when(h), "metric": metric,
+                "need": need[metric], "demand": need, "supply": h}
+        if best is None or cand["when"] < best["when"]:
             best = cand
     if best:
         return best
@@ -46,10 +61,10 @@ def earliest_path(attack_rows, hardware_rows, target):
 def supply_points(hardware_rows, metric):
     """Announced machines in one metric as (year, value, row), with `record` marking each new largest-so-far."""
     pts = sorted(((int(h["target_year"]), h[metric], h) for h in hardware_rows
-                  if h.get(metric) is not None and h.get("target_year") is not None), key=lambda p: (p[0], p[1]))
+                  if h.get(metric) is not None and h.get("target_year") is not None), key=lambda p: (when(p[2]), p[1]))
     best, out = None, []
     for year, val, h in pts:
         rec = best is None or val > best
         best = val if rec else best
-        out.append({"year": year, "y": val, "row": h, "record": rec})
+        out.append({"year": year, "x": pos(h), "y": val, "row": h, "record": rec})
     return out

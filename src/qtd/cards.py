@@ -4,7 +4,7 @@ A card is a public snapshot: build it only from what the page shows to any visit
 live figures as 'as of' facts (never relative times).
 """
 from .breakdate import earliest_path
-from .present import TARGET_ORDER, clean, headline, label, short_count
+from .present import TARGET_ORDER, clean, headline, label, short_count, year_label
 
 SITE_NAME = "Quantum threat tracker"
 TITLE = "How close is quantum computing to breaking encryption?"
@@ -18,7 +18,7 @@ def _part(rows, hw_rows, target):
     name = TARGET_SHARE.get(target) or label(target)[0]
     path = earliest_path(rows, hw_rows, target)
     if path.get("year"):
-        return f"{name} {path['year']}"
+        return f"{name} {year_label(path['year'], path.get('month'))}"
     h = headline(rows, target)
     if h:
         return f"{name}: no announced machine is big enough yet (needs {short_count(h['best']['y'])} qubits)"

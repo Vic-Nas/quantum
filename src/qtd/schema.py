@@ -13,7 +13,7 @@ HARDWARE_FIELDS = {
     "logical_qubits": ("number", 1, 1e8),
     "physical_qubits": ("number", 1, 1e10),
     "target_year": ("number", 2020, 2100),
-    "target_month": ("number", 1, 12),
+    "target_month": ("month", None, None),  # a month name checked by code against the quote, stored as 1 to 12
 }
 FIELDS = {"attack": ATTACK_FIELDS, "hardware": HARDWARE_FIELDS}
 

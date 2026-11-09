@@ -187,3 +187,28 @@ def infer_table_target(quote: str, context: str):
         hits = [n for n in (128, 192, 256) if standalone(n)]
         return f"aes-{hits[0]}" if len(hits) == 1 else None
     return None
+
+
+_MON = {"jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6, "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12}
+_MON_RE = r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)"
+
+
+def _month_num(word: str):
+    return _MON.get(word.strip(". ").lower()[:3])
+
+
+def month_in_quote(raw: str, year, quote: str):
+    """The month number (1 to 12) if `raw` names a month that the quote puts right next to `year`, else None.
+
+    'June 2028', 'June 15, 2028' and '15 June 2028' count. A bare 'may' elsewhere in the sentence does not.
+    """
+    m = re.match(rf"^\W*({_MON_RE})\b", str(raw or "").strip(), re.I)
+    if not m or year is None:
+        return None
+    want = _month_num(m.group(1))
+    day = r"\d{1,2}(?:st|nd|rd|th)?"
+    for pat in (rf"\b({_MON_RE})\.?\s+(?:{day},?\s+)?{int(year)}\b", rf"\b{day}\s+(?:of\s+)?({_MON_RE})\.?,?\s+{int(year)}\b"):
+        for hit in re.finditer(pat, quote or "", re.I):
+            if _month_num(hit.group(1)) == want:
+                return want
+    return None

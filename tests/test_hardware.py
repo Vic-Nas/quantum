@@ -146,5 +146,82 @@ class Run(unittest.TestCase):
         self.assertEqual(self.read("hw_pending.json"), [])  # cleared once it worked
 
 
+class Month(unittest.TestCase):
+    Q = "IonQ will deliver 10,000 physical qubits in June 2027, and 40,000 in 2028."
+    SRC = "Roadmap. " + Q
+
+    def est(self, month, year="2027", quote=None):
+        return {"kind": "hardware", "estimates": [{"quote": quote or self.Q, "fields": {
+            "physical_qubits": "10,000", "target_year": year, "target_month": month}}]}
+
+    def month(self, ex):
+        res = verify(ex, self.SRC, True, {"actor": "IonQ"})["ok_estimates"]
+        return res[0]["values"].get("target_month")
+
+    def test_a_month_next_to_the_year_is_kept_as_a_number(self):
+        self.assertEqual(self.month(self.est("June")), 6)
+        self.assertEqual(self.month(self.est("Jun")), 6)
+
+    def test_a_wrong_or_unattached_month_is_dropped_without_sinking_the_claim(self):
+        self.assertIsNone(self.month(self.est("March")))  # not in the quote
+        q = "We may deliver 10,000 physical qubits in 2027."
+        self.assertIsNone(verify(self.est("May", quote=q), q, True, {"actor": "IonQ"})["ok_estimates"][0]["values"].get("target_month"))
+        self.assertEqual(self.month(self.est("June", year="2027")), 6)
+
+    def test_models_need_not_agree_on_the_month(self):
+        from qtd.verify import agree
+        base = {"actor": "IonQ", "physical_qubits": 10000.0, "target_year": 2027.0}
+        self.assertTrue(agree({**base, "target_month": 6}, base))
+        self.assertTrue(agree({**base, "target_month": 6}, {**base, "target_month": 5}))
+
+    def test_month_extraction_adds_no_model_calls(self):
+        calls = []
+
+        def fn(role, f, exclude=None):
+            calls.append(role)
+            ex = self.est("June")
+            return ex, ("gemini-3.5-flash-lite" if role == "primary" else "gemini-3.1-flash-lite")
+        pipeline.DATA = Path(tempfile.mkdtemp())
+        with mock.patch.object(llm, "call_chain", fn):
+            r = pipeline.run_hardware(items=[{"id": "page:x", "version": "1", "source": "page", "url": "https://ionq.com/roadmap",
+                                              "actor": "IonQ", "title": "Roadmap", "text": self.Q, "published": "", "updated": ""}])
+        self.assertEqual(sorted(calls), ["primary", "secondary"])  # one pair, same as before the month field existed
+        self.assertEqual(json.loads((pipeline.DATA / "hardware.json").read_text())[0]["target_month"], 6)
+
+    def test_an_existing_row_gains_the_month_only_from_the_same_quote(self):
+        pipeline.DATA = Path(tempfile.mkdtemp())
+        row = {"id": "p#0", "kind": "hardware", "actor": "IonQ", "target_year": 2027.0, "physical_qubits": 10000.0, "quote": self.Q}
+        (pipeline.DATA / "hardware.json").write_text(json.dumps([row, {**row, "id": "p#1", "target_year": 2030.0, "quote": "other"}]))
+
+        def fn(role, f, exclude=None):
+            return self.est("June"), ("gemini-3.5-flash-lite" if role == "primary" else "gemini-3.1-flash-lite")
+        with mock.patch.object(llm, "call_chain", fn):
+            r = pipeline.run_hardware(items=[{"id": "page:x", "version": "2", "source": "page", "url": "https://ionq.com/roadmap",
+                                              "actor": "IonQ", "title": "Roadmap", "text": self.Q, "published": "", "updated": ""}])
+        rows = json.loads((pipeline.DATA / "hardware.json").read_text())
+        self.assertEqual((r["applied"], r.get("month_added")), (0, 1))
+        self.assertEqual(rows[0]["target_month"], 6)
+        self.assertNotIn("target_month", rows[1])
+
+
+class Dates(unittest.TestCase):
+    ATTACK = [{"id": "a#0", "target": "rsa-2048", "physical_qubits": 100.0, "published": "2026-01-01"}]
+
+    def test_a_month_makes_a_machine_earlier_than_a_year_only_one(self):
+        rows = [hw("A", 2028, 200), {**hw("B", 2028, 200), "target_month": 3}]
+        p = breakdate.earliest_path(self.ATTACK, rows, "rsa-2048")
+        self.assertEqual((p["year"], p["month"], p["supply"]["actor"]), (2028, 3, "B"))
+        self.assertAlmostEqual(p["when"], 2028.25)
+
+    def test_without_months_everything_is_as_before(self):
+        p = breakdate.earliest_path(self.ATTACK, [hw("A", 2028, 200)], "rsa-2048")
+        self.assertEqual((p["year"], p["month"], p["when"]), (2028, None, 2029.0))
+        self.assertEqual(breakdate.supply_points([hw("A", 2028, 200)], "physical_qubits")[0]["x"], 2028.5)
+
+    def test_a_month_moves_the_machine_on_the_axis(self):
+        pts = breakdate.supply_points([{**hw("A", 2028, 200), "target_month": 1}], "physical_qubits")
+        self.assertAlmostEqual(pts[0]["x"], 2028 + 0.5 / 12)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -2,7 +2,7 @@
 from pathlib import Path
 
 from .breakdate import earliest_path
-from .present import TARGET_NAMES, TARGET_ORDER, date_label, headline, short_count
+from .present import TARGET_NAMES, TARGET_ORDER, date_label, headline, short_count, year_label
 
 W, H = 1200, 630
 INK, DIM, PAPER, ACCENT, RULE = (26, 24, 19), (98, 93, 80), (244, 241, 234), (194, 87, 12), (214, 210, 200)
@@ -50,7 +50,7 @@ def render(rows, hw_rows, as_of, out, fonts=Path("web/fonts"), domain=""):
         d.text((x, base + 34), tech, font=small, fill=DIM)
         path = earliest_path(rows, hw_rows, t)
         if path.get("year"):
-            d.text((x, base + 78), str(path["year"]), font=big, fill=ACCENT)
+            d.text((x, base + 78), year_label(path["year"], path.get("month")), font=big, fill=ACCENT)
             d.text((x, base + 172), "earliest announced path to break it", font=small, fill=DIM)
             d.text((x, base + 204), f"needs {short_count(path['need'])} qubits; {path['supply']['actor']} plans {short_count(path['supply'][path['metric']])}",
                    font=small, fill=DIM)

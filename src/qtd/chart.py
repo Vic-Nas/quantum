@@ -69,13 +69,13 @@ def overview_svg(lines, supply_phys, supply_log, width, height, label, today, na
         for p in pts:
             if p["record"]:
                 if top is not None:
-                    stair.append(f"H{px(p['year'] + 0.5):.1f}")
-                stair.append(("M" if top is None else "V") + (f"{px(p['year'] + 0.5):.1f} {py(p['y']):.1f}" if top is None else f"{py(p['y']):.1f}"))
+                    stair.append(f"H{px(p['x']):.1f}")
+                stair.append(("M" if top is None else "V") + (f"{px(p['x']):.1f} {py(p['y']):.1f}" if top is None else f"{py(p['y']):.1f}"))
                 top = p["y"]
         if stair:
             d = f"{''.join(stair)}H{px(x1 - 0.2):.1f}"
             if kind == "phys":  # a soft fill shows the size of machine that can be built, growing over time
-                out.append(f'<path class="area" d="{d}V{height - b}H{px(pts[0]["year"] + 0.5):.1f}Z"/>')
+                out.append(f'<path class="area" d="{d}V{height - b}H{px(pts[0]["x"]):.1f}Z"/>')
             out.append(f'<path class="stair sup {kind}" d="{d}" fill="none"/>')
     # attack lines with direct labels at the right edge
     xr = width - r
@@ -92,14 +92,14 @@ def overview_svg(lines, supply_phys, supply_log, width, height, label, today, na
                    f'<text class="nm" x="{xr + 12:.1f}" y="{ly - 1:.1f}">{_e(ln["name"])}</text>'
                    f'<text class="sb" x="{xr + 12:.1f}" y="{ly + 12:.1f}">{_e(ln["sub"])}</text></a>')
         if ln.get("year") and ln["practical"]:
-            cx = f"{px(ln['year'] + 0.5):.1f}"
+            cx = f"{px(ln['x']):.1f}"
             out.append(f'<circle class="halo" cx="{cx}" cy="{y:.1f}" r="9"/><circle class="cross" cx="{cx}" cy="{y:.1f}" r="7"/>')
     for pts, kind in ((supply_phys, "phys"), (supply_log, "log")):
         for p in pts:
             hid = dom_id(p["row"]["id"])
             aria = f'{p["row"]["actor"]}, {short_count(p["y"])} {"physical" if kind == "phys" else "logical"} qubits by {p["year"]}'
             out.append(f'<a class="dot {kind}{" rec" if p["record"] else ""}" href="#{hid}" data-id="{hid}" aria-label="{_e(aria)}">'
-                       f'<circle class="hit" cx="{px(p["year"] + 0.5):.1f}" cy="{py(p["y"]):.1f}" r="14"/>'
-                       f'<circle class="pt" cx="{px(p["year"] + 0.5):.1f}" cy="{py(p["y"]):.1f}" r="6"/></a>')
+                       f'<circle class="hit" cx="{px(p["x"]):.1f}" cy="{py(p["y"]):.1f}" r="14"/>'
+                       f'<circle class="pt" cx="{px(p["x"]):.1f}" cy="{py(p["y"]):.1f}" r="6"/></a>')
     out.append("</svg>")
     return "".join(out)
