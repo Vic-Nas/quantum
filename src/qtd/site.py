@@ -327,17 +327,30 @@ def vendor_timeline_html(actor, entries):
 # Page bodies
 # ---------------------------------------------------------------------------
 
-def services_html(crows, pq_overrides=None):
+PQ_LABELS = {"protected": ("pq-yes", "Protected"), "migrating": ("pq-part", "Rolling out"),
+             "partial": ("pq-part", "Partly protected"), "none": ("pq-no", "No PQ protection yet"),
+             "unknown": ("pq-no", "Not confirmed")}
+
+
+def services_html(crows, pq_overrides=None, facts=None):
     pq_overrides = pq_overrides or {}
+    facts = facts or {}
     slug_year = {}
     for crow in crows:
         yr = crow["year"]
         slug_year[crow["slug"]] = (yr, crow["safe"], crow.get("proxy"))
     items = []
     for name, note, slug, pq, detail in SERVICES:
-        override = pq_overrides.get(name, {})
-        if override.get("pq_status"):
-            pq = override["pq_status"]
+        fact = facts.get(name) or {}
+        if fact.get("answer") or fact.get("pq_status"):  # a person's line ("pq_status") or a confirmed source ("answer")
+            pq = fact.get("answer") or fact["pq_status"]
+        elif pq_overrides.get(name, {}).get("pq_status"):
+            pq = pq_overrides[name]["pq_status"]
+        if fact.get("note"):
+            detail = fact["note"]
+        elif fact.get("quote"):
+            detail = clean(fact["quote"], 170)
+        src = (f' <a href="{e(fact["url"])}" class="svc-src">Source</a>' if fact.get("url") else "")
         yr, safe, proxy = slug_year.get(slug, (None, False, False))
         if safe:
             status_cls, status_txt = "safe", "Safe"
@@ -345,27 +358,24 @@ def services_html(crows, pq_overrides=None):
             status_cls, status_txt = "dated", f"{yr}{'+ ' if proxy else ''}"
         else:
             status_cls, status_txt = "warn", "TBD"
-        if pq == "migrating":
-            pq_cls, pq_txt = "pq-yes", "Adding PQ protection"
-        elif pq == "partial":
-            pq_cls, pq_txt = "pq-part", "Partially protected"
-        else:
-            pq_cls, pq_txt = "pq-no", "No PQ protection yet"
+        pq_cls, pq_txt = PQ_LABELS.get(pq, PQ_LABELS["unknown"])
+        checked = f' <span class="dim">checked {e(date_label(fact["checked"]))}</span>' if fact.get("checked") else ""
         items.append(
-            f'<a class="svc" href="threats/{e(slug)}/">'
+            f'<div class="svc"><a class="svc-main" href="threats/{e(slug)}/">'
             f'<span class="svc-name">{e(name)}</span>'
-            f'<span class="svc-note">{e(note)}</span>'
+            f'<span class="svc-note">{e(note)}</span></a>'
+            f'<p class="svc-detail">{e(detail)}{src}{checked}</p>'
             f'<span class="svc-foot">'
             f'<span class="svc-pq {pq_cls}">{pq_txt}</span>'
             f'<span class="svc-yr {status_cls}">{e(status_txt)}</span>'
-            f'</span></a>')
+            f'</span></div>')
     return (f'<section class="svc-section"><h2>What you use</h2>'
             f'<div class="svc-grid">{"".join(items)}</div></section>')
 
 
-def home_body(crows, today, alert, pq_overrides=None):
+def home_body(crows, today, alert, pq_overrides=None, facts=None):
     cd = countdown_html(crows, today)
-    svcs = services_html(crows, pq_overrides) if crows else ""
+    svcs = services_html(crows, pq_overrides, facts) if crows else ""
     grid = threat_grid_html(crows) if crows else ""
     empty = '<p class="empty">No verified estimates yet. The first update has not stored any.</p>' if not crows else ""
     return (f'<section class="hero"><h1>When could quantum computers break the encryption you use?</h1>'
@@ -374,7 +384,7 @@ def home_body(crows, today, alert, pq_overrides=None):
             f'{alert}{cd}{empty}{svcs}{grid}')
 
 
-def threat_body(crow, rows, hw_rows, depth):
+def threat_body(crow, rows, hw_rows, depth, facts=None):
     root = _root(depth)
     all_targets = [ln["target"] for ln in crow["lines"]]
     primary_target = all_targets[0]
@@ -403,9 +413,16 @@ def threat_body(crow, rows, hw_rows, depth):
                       for t, x in eff_data if x)
         if eff:
             effects = f'<div><h4>If it breaks</h4><ul>{eff}</ul></div>'
+    exposed = ""
+    figs = [f for f in (facts or {}).values() if f.get("kind") == "figure" and f.get("group") in all_targets and f.get("answer")]
+    if figs:
+        lis = "".join(f'<li><strong>{e(f["answer"])}</strong> {e(f.get("label", ""))} '
+                      f'<a href="{e(f["url"])}" title="{e(clean(f.get("quote", ""), 300))}">Source</a> '
+                      f'<span class="dim">checked {e(date_label(f["checked"]))}</span></li>' for f in figs)
+        exposed = f'<div><h4>How much is exposed</h4><ul>{lis}</ul></div>'
     context = (f'<aside class="t-context">'
                f'<div><h4>Where you meet it</h4><ul>{algos}</ul></div>'
-               f'{effects}'
+               f'{effects}{exposed}'
                f'<p class="d-note">{e(SECURES_NOTE)}</p></aside>')
 
     intro = ""
@@ -554,6 +571,7 @@ def build(out="site", data="data"):
     rows = _load("attacks.json")
     hw_rows = _load("hardware.json")
     pq_overrides = json.loads((data / "pq_status.json").read_text()) if (data / "pq_status.json").exists() else {}
+    facts = json.loads((data / "facts.json").read_text()) if (data / "facts.json").exists() else {}
     st = json.loads((data / "status.json").read_text()) if (data / "status.json").exists() else {}
     as_of = (st.get("run_at") or "")[:10]
     updated = date_label(as_of) or "not yet"
@@ -580,7 +598,7 @@ def build(out="site", data="data"):
     crows = countdown_rows(lines)
 
     # --- Home ---
-    body = home_body(crows, today, alert, pq_overrides)
+    body = home_body(crows, today, alert, pq_overrides, facts)
     (out / "index.html").write_text(
         shell(body, home_card, assets, ("css/base.css", "css/pages/index.css"), 0, updated))
 
@@ -589,7 +607,7 @@ def build(out="site", data="data"):
         slug = crow["slug"]
         d = out / "threats" / slug
         d.mkdir(parents=True, exist_ok=True)
-        tbody = threat_body(crow, rows, hw_rows, 2)
+        tbody = threat_body(crow, rows, hw_rows, 2, facts)
         tcard = page_card(f"{crow['title']} | Quantum threat tracker",
                           f"When could quantum computers break {crow['title'].lower()}?",
                           f"{url}threats/{slug}/")

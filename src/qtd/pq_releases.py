@@ -20,8 +20,8 @@ TRACKED = [
     ("WireGuard", ["WireGuard/wireguard-linux-compat", "WireGuard/wireguard-tools"]),
     ("Bitcoin", ["bitcoin/bitcoin"]),
     ("Ethereum", ["ethereum/go-ethereum"]),
-    ("1Password / Bitwarden", ["bitwarden/clients"]),
-    ("VPN (OpenVPN, IPsec)", ["OpenVPN/openvpn"]),
+    ("Bitwarden", ["bitwarden/clients"]),
+    ("OpenVPN", ["OpenVPN/openvpn"]),
 ]
 
 # Deduplicated repo list and reverse map
@@ -34,10 +34,8 @@ for _name, _repos in TRACKED:
         _REPO_TO_SERVICES.setdefault(_r, []).append(_name)
 
 PQ_KEYWORDS = re.compile(
-    r"post.?quantum|pq(?:xdh|3|c)|ml.?kem|ml.?dsa|kyber|dilithium|crystals|"
-    r"ntru|sike|frodo|classic.?mceliece|sphincs|slh.?dsa|hybrid.?key|"
-    r"quantum.?resistan|quantum.?safe|pqc|kem|x25519.?ml.?kem|"
-    r"sntrup761|streamlined.?ntru",
+    r"post.?quantum|pq(?:xdh|3|c)\b|ml.?kem|ml.?dsa|kyber|dilithium|"
+    r"classic.?mceliece|sphincs|slh.?dsa|x25519.?ml.?kem|sntrup761|streamlined.?ntru|quantum.?(?:resistan|safe)",
     re.IGNORECASE,
 )
 

@@ -8,7 +8,9 @@ import xml.etree.ElementTree as ET
 from . import http
 from .textutil import norm
 
-ALLOWLIST = ("arxiv.org", "eprint.iacr.org", "ionq.com", "quantinuum.com", "quantumai.google", "ibm.com")
+ALLOWLIST = ("arxiv.org", "eprint.iacr.org", "ionq.com", "quantinuum.com", "quantumai.google", "ibm.com",
+             "signal.org", "openssh.org", "support.apple.com", "developers.cloudflare.com", "ethereum.org",
+             "strongswan.org", "1password.com", "wireguard.com", "chaincode.com")
 
 ARXIV_QUERIES = [
     'abs:"discrete logarithm" AND abs:quantum',

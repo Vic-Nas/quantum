@@ -165,10 +165,12 @@ SECURES = {
     "ecdlp-256": [
         ("Bitcoin and Ethereum",
          "Owning coins means holding a private key. Breaking the curve lets an attacker work out that key from its public key "
-         "and move the coins. The most exposed coins are those whose public key is already visible on the blockchain."),
+         "and move the coins. The most exposed coins are those whose public key is already visible on the blockchain, and many of those sit in old "
+         "or lost wallets that cannot be moved to safer addresses, so they would stay exposed."),
         ("Secure connections, SSH and messaging",
-         "TLS, SSH, Signal and WireGuard use these curves. Traffic recorded today could be decrypted later, and logins or "
-         "identities could be forged. Many of them have started adding post-quantum protection."),
+         "TLS, SSH, Signal, iMessage and WireGuard use these curves. Browsers, OpenSSH, Signal and iMessage already add "
+         "post-quantum key exchange, so traffic they record from now on is safer. Signatures, certificates and logins "
+         "built on these curves could still be forged."),
     ],
     "rsa-2048": [
         ("Websites (HTTPS certificates)",
@@ -252,23 +254,27 @@ COUNTDOWN = [
     ("Bitcoin, Ethereum and crypto wallets", "Also Signal, SSH and WireGuard logins: all use the same 256-bit curves", ["ecdlp-256"]),
     ("Websites and software updates", "RSA keys behind HTTPS certificates and signed code", ["rsa-2048"]),
     ("Government connections and Ethereum validators", "P-384 and BLS12-381", ["ecdlp-384"]),
-    ("Older VPN and SSH setups", "Finite-field Diffie-Hellman. Real keys are bigger than the 512 bits studied, so later", ["dlp-ff-512"]),
+    ("Older VPN setups", "Finite-field Diffie-Hellman. Real keys are bigger than the 512 bits studied, so later", ["dlp-ff-512"]),
     ("Disk encryption and passwords", "AES-128 and SHA-256 are only weakened, not broken", ["aes-128", "sha-256"]),
 ]
 
 # Specific apps and services people recognize, mapped to which threat group they fall under.
-# (name, short status note, threat_slug, pq_status)
-# pq_status: "migrating" = adding post-quantum protection, "not yet" = still vulnerable, "partial" = some protection added
+# (name, what it uses, threat_slug, pq_status, detail). Sources in data/facts_sources.json refresh pq_status and detail;
+# a service with no readable source stays as written here, or a person adds a "manual" line to data/facts.json.
+# pq_status: "protected" = on by default, "migrating" = rolling out or planned, "partial" = some parts protected,
+# "none" = no protection, "unknown" = nothing official found.
 SERVICES = [
-    ("Chrome / Firefox", "HTTPS uses RSA or ECC certificates", "websites", "migrating", "Browsers are adopting ML-KEM for key exchange, but certificates still use classic keys."),
-    ("Signal", "X25519 key exchange (256-bit curve)", "bitcoin", "migrating", "Signal added PQXDH (post-quantum key agreement) in 2023. Older messages recorded before the update are still at risk."),
-    ("iMessage", "P-256 key exchange", "bitcoin", "migrating", "Apple added PQ3 post-quantum protocol in 2024. Older messages recorded before the update are still at risk."),
-    ("WhatsApp", "Curve25519 (Signal protocol)", "bitcoin", "not yet", "Uses the Signal protocol but has not yet enabled Signal's post-quantum upgrade."),
-    ("Tor Browser", "Curve25519 for relay circuits", "bitcoin", "not yet", "Tor relays use X25519. A quantum computer could decrypt recorded traffic. Post-quantum relay handshakes are in development."),
-    ("SSH", "Ed25519 or RSA keys", "bitcoin", "partial", "OpenSSH 9.0+ supports hybrid post-quantum key exchange, but most servers have not enabled it."),
-    ("WireGuard", "Curve25519 key exchange", "bitcoin", "not yet", "WireGuard uses X25519. Recorded traffic could be decrypted later. No post-quantum option yet."),
-    ("Bitcoin", "secp256k1 (ECDSA signatures)", "bitcoin", "not yet", "Coins whose public key is exposed on-chain are most at risk. No consensus on a migration plan yet."),
-    ("Ethereum", "secp256k1 + BLS12-381 validators", "bitcoin", "not yet", "Wallet keys and validator signatures are both vulnerable. Account abstraction may help wallets migrate."),
-    ("1Password / Bitwarden", "AES-256 vault, SRP or RSA key exchange", "disk-encryption", "partial", "Vault encryption (AES-256) is safe. Key exchange during login may use RSA or SRP, which is not."),
-    ("VPN (OpenVPN, IPsec)", "RSA or DH key exchange", "older-vpn", "not yet", "Most VPN setups still use classic key exchange. Recorded traffic could be decrypted later."),
+    ("Chrome / Firefox", "HTTPS uses RSA or ECC certificates", "websites", "protected", "Key exchange uses hybrid ML-KEM by default. Certificates still use classic keys."),
+    ("Signal", "X25519 key exchange (256-bit curve)", "bitcoin", "protected", "PQXDH (2023) and the SPQR ratchet (2025) add ML-KEM to new sessions."),
+    ("iMessage", "P-256 key exchange", "bitcoin", "protected", "PQ3 (2024) adds post-quantum protection to setup and ongoing messages."),
+    ("WhatsApp", "Curve25519 (Signal protocol)", "bitcoin", "unknown", "No official post-quantum announcement found."),
+    ("Tor Browser", "Curve25519 for relay circuits", "bitcoin", "partial", "Some TLS links use hybrid ML-KEM. The circuit handshake is still classical."),
+    ("SSH", "Ed25519 or RSA keys", "bitcoin", "protected", "OpenSSH uses hybrid ML-KEM key exchange by default (10.0). Host and login signatures are still classical."),
+    ("WireGuard", "Curve25519 key exchange", "bitcoin", "partial", "Plain WireGuard is not post-quantum. Its preshared-key mode, Rosenpass and some VPN providers add protection."),
+    ("Bitcoin", "secp256k1 (ECDSA signatures)", "bitcoin", "none", "Coins whose public key is exposed on-chain are most at risk. Migration proposals such as BIP-360 are drafts, not activated."),
+    ("Ethereum", "secp256k1 + BLS12-381 validators", "bitcoin", "migrating", "The Ethereum Foundation has a post-quantum roadmap and test networks. No activation date yet."),
+    ("1Password", "AES-256 vault", "disk-encryption", "partial", "Web connections use hybrid ML-KEM and passkeys can use ML-DSA. Vault encryption (AES-256) is safe."),
+    ("Bitwarden", "AES-256 vault", "disk-encryption", "unknown", "No public post-quantum plan found."),
+    ("IPsec VPNs", "DH or ECDH key exchange", "older-vpn", "partial", "strongSwan 6 and Apple's IKEv2 support ML-KEM (RFC 9370), but it has to be switched on."),
+    ("OpenVPN", "RSA or DH key exchange", "older-vpn", "unknown", "No public post-quantum plan found."),
 ]

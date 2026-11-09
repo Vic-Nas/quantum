@@ -242,7 +242,7 @@ class Build(unittest.TestCase):
         self.assertEqual(rows[0], ("Bitcoin, Ethereum and crypto wallets", "2028"))
         self.assertIn('class="row first"', html)
         self.assertEqual(dict(rows)["Websites and software updates"], "2029")
-        self.assertEqual(dict(rows)["Older VPN and SSH setups"], "2027 or later")
+        self.assertEqual(dict(rows)["Older VPN setups"], "2027 or later")
         self.assertEqual(dict(rows)["Disk encryption and passwords"], "Safe in practice")
 
     def test_threat_page_content(self):

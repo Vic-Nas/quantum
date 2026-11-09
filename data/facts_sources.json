@@ -1,0 +1,19 @@
+[
+ {"id": "Chrome / Firefox", "kind": "pq", "topic": "Chrome / Firefox", "what": "TLS key exchange in web browsers", "url": "https://developers.cloudflare.com/ssl/post-quantum-cryptography/pqc-support/"},
+ {"id": "Signal", "kind": "pq", "topic": "Signal", "what": "messaging encryption", "url": "https://signal.org/blog/spqr/"},
+ {"id": "iMessage", "kind": "pq", "topic": "iMessage", "what": "messaging encryption", "url": "https://support.apple.com/guide/security/secc7c82e533/web"},
+ {"id": "SSH", "kind": "pq", "topic": "SSH", "what": "OpenSSH key exchange", "url": "https://www.openssh.org/pq.html"},
+ {"id": "WireGuard", "kind": "pq", "topic": "WireGuard", "what": "VPN tunnel key exchange", "url": "https://www.wireguard.com/protocol/"},
+ {"id": "Ethereum", "kind": "pq", "topic": "Ethereum", "what": "wallet and validator signatures", "url": "https://ethereum.org/roadmap/security/quantum-resistance/"},
+ {"id": "1Password", "kind": "pq", "topic": "1Password", "what": "password manager connections and passkeys", "url": "https://1password.com/blog/post-quantum-cryptography"},
+ {"id": "IPsec VPNs", "kind": "pq", "topic": "IPsec VPNs", "what": "IKEv2 key exchange in strongSwan", "url": "https://strongswan.org/blog/2024/12/03/strongswan-6.0.0-released.html"},
+
+ {"id": "btc-exposed-keys", "kind": "figure", "group": "ecdlp-256", "label": "in outputs whose public key is already visible",
+  "ask": "How many bitcoin are held in outputs whose public key is already exposed on the blockchain?", "url": "https://chaincode.com/bitcoin-post-quantum.pdf"},
+ {"id": "btc-p2pk", "kind": "figure", "group": "ecdlp-256", "label": "in old pay-to-public-key (P2PK) outputs",
+  "ask": "How many bitcoin are held in pay-to-public-key (P2PK) outputs?", "url": "https://chaincode.com/bitcoin-post-quantum.pdf"},
+ {"id": "btc-dormant", "kind": "figure", "group": "ecdlp-256", "label": "dormant and unlikely to ever move to safe addresses",
+  "ask": "How many bitcoin are dormant or lost and so cannot be migrated to quantum-safe addresses?", "url": "https://arxiv.org/pdf/2606.14484"},
+ {"id": "eth-exposed", "kind": "figure", "group": "ecdlp-256", "label": "of all ETH exposed at rest",
+  "ask": "What share or amount of ETH has an exposed public key at rest?", "url": "https://arxiv.org/pdf/2606.14484"}
+]
