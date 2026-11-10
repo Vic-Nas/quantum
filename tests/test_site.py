@@ -349,8 +349,9 @@ class Build(unittest.TestCase):
     def test_states(self):
         self.assertIn("No verified estimates yet", (self.build([], None) / "index.html").read_text())
         bad = (self.build(ROWS, {**STATUS, "gate": {"ok": False}, "source_errors": {"arxiv": "zero items"}}, hw=HW) / "index.html").read_text()
-        self.assertIn("The last update had a problem", bad)
-        self.assertIn('role="alert"', bad)
+        self.assertNotIn("The last update had a problem", bad)
+        self.assertNotIn('role="alert"', bad)
+        self.assertNotIn("zero items", bad)
 
     def test_month_precision_in_threat_page(self):
         hw_month = [dict(HW[2], target_month=6)]

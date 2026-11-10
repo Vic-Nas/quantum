@@ -4,6 +4,9 @@ import urllib.error
 import urllib.request
 
 
+ARXIV_MIN_INTERVAL = 3
+
+
 def get(url: str, timeout: int = 30, retries: int = 4, headers: dict | None = None) -> bytes:
     """GET with retries. Rate limits (429) and 503 wait much longer than ordinary errors."""
     last = None

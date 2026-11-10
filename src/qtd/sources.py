@@ -1,6 +1,7 @@
 """Allowlisted fetchers. Each returns a list of item dicts with a stable id."""
 import hashlib
 import re
+import time
 import urllib.parse
 from html.parser import HTMLParser
 import xml.etree.ElementTree as ET
@@ -54,7 +55,9 @@ def parse_arxiv(xml_bytes: bytes):
 
 def fetch_arxiv(max_results: int = 50, queries=None):
     seen, items = set(), []
-    for q in queries or ARXIV_QUERIES:
+    for n, q in enumerate(queries or ARXIV_QUERIES):
+        if n:
+            time.sleep(http.ARXIV_MIN_INTERVAL)
         params = urllib.parse.urlencode({"search_query": q, "start": 0, "max_results": max_results,
                                          "sortBy": "submittedDate", "sortOrder": "descending"})
         for it in parse_arxiv(http.get("https://export.arxiv.org/api/query?" + params)):

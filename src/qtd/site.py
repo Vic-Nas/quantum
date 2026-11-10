@@ -646,13 +646,7 @@ def build(out="site", data="data"):
                              url.split("//", 1)[-1].rstrip("/"))
     home_card = cards.home_card(rows, hw_rows, as_of, url, url + "assets/card.png" if has_img else None)
 
-    gate_ok = (st.get("gate") or {}).get("ok", True)
-    problems = list((st.get("source_errors") or {}).items())
     alert = ""
-    if problems or not gate_ok:
-        why = "; ".join(f"{k}: {clean(v, 80)}" for k, v in problems) or \
-              "the safety check failed, so new papers are held back"
-        alert = f'<p class="alert" role="alert"><strong>The last update had a problem.</strong> {e(why)}</p>'
 
     lines = chart_lines(rows, hw_rows)
     narrow_lines = chart_lines(rows, hw_rows, narrow=True)
