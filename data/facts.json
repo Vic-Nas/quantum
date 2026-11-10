@@ -22,5 +22,77 @@
   "answer": "50 to 65%",
   "url": "https://arxiv.org/pdf/2606.14484",
   "seed": true
+ },
+ "Signal": {
+  "kind": "pq",
+  "topic": "Signal",
+  "answer": "migrating",
+  "quote": "Today, we are happy to announce the next step in advancing quantum resistance for the Signal Protocol: an additional regularly advancing post-quantum ratchet called the Sparse Post Quantum Ratchet, or SPQR.",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemini-3.1-flash-lite"
+  },
+  "url": "https://signal.org/blog/spqr/",
+  "checked": "2026-11-10"
+ },
+ "iMessage": {
+  "kind": "pq",
+  "topic": "iMessage",
+  "answer": "protected",
+  "quote": "Apple deployed iMessage PQ3 in iOS 17.4, iPadOS 17.4, macOS 14.4, and watchOS 10.4, which advanced the state-of-the-art in quantum-secure messaging at scale.",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemini-3.1-flash-lite"
+  },
+  "url": "https://support.apple.com/guide/security/secc7c82e533/web",
+  "checked": "2026-11-10"
+ },
+ "SSH": {
+  "kind": "pq",
+  "topic": "SSH",
+  "answer": "protected",
+  "quote": "OpenSSH has offered post-quantum key agreement (KexAlgorithms) by default since release 9.0 (April 2022)",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemma-4-31b-it"
+  },
+  "url": "https://www.openssh.org/pq.html",
+  "checked": "2026-11-10"
+ },
+ "WireGuard": {
+  "kind": "pq",
+  "topic": "WireGuard",
+  "answer": "migrating",
+  "quote": "If an additional layer of symmetric-key crypto is required (for, say, post-quantum resistance), WireGuard also supports an optional pre-shared key that is mixed into the public key cryptography.",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemma-4-31b-it"
+  },
+  "url": "https://www.wireguard.com/protocol/",
+  "checked": "2026-11-10"
+ },
+ "1Password": {
+  "kind": "pq",
+  "topic": "1Password",
+  "answer": "partial",
+  "quote": "We will provide updates in the future as we migrate other parts of our infrastructure to support PQC, as we firmly believe that cryptographic designs should be done in the public.",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemma-4-31b-it"
+  },
+  "url": "https://1password.com/blog/post-quantum-cryptography",
+  "checked": "2026-11-10"
+ },
+ "IPsec VPNs": {
+  "kind": "pq",
+  "topic": "IPsec VPNs",
+  "answer": "migrating",
+  "quote": "Support for multiple IKEv2 key exchanges (RFC 9370) has been added, which allows to use up to seven additional key exchanges (classic or post-quantum) to establish key material when negotiating IKE and/or Child SAs.",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemini-3.1-flash-lite"
+  },
+  "url": "https://strongswan.org/blog/2024/12/03/strongswan-6.0.0-released.html",
+  "checked": "2026-11-10"
  }
 }
