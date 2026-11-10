@@ -8,7 +8,9 @@ ROOT = Path(__file__).resolve().parents[1]
 class Css(unittest.TestCase):
     def test_sticky_bar_is_opaque(self):
         css = (ROOT / "web" / "css" / "base.css").read_text()
-        self.assertIn("background:var(--paper);border-bottom:1px solid var(--rule)", css)
+        self.assertIn(".app-bar{position:sticky", css)
+        self.assertIn("background-color:#f4f1ea;border-bottom:1px solid var(--rule)", css)
+        self.assertIn("isolation:isolate", css)
         self.assertNotIn("backdrop-filter", css)
 
 

@@ -104,7 +104,7 @@ def shell(body, card, assets, css_rels, depth, updated, nav_active=""):
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 {head(card, css_hrefs, root)}
 </head><body>
-<header class="bar">
+<header class="app-bar">
 <a class="brand" href="{root}"><img src="{root}assets/favicon.svg" alt="" width="22" height="22">Quantum threat tracker</a>
 {nav_html(nav_active, depth)}
 <span class="bar-end"><span class="upd">Updated {e(updated)}</span>
