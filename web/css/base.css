@@ -34,7 +34,7 @@ a:hover{text-decoration:underline}
 
 /* app bar */
 .bar{position:sticky;top:0;z-index:5;height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;
-  background:rgb(244 241 234/.92);backdrop-filter:blur(6px);border-bottom:1px solid var(--rule)}
+  background:var(--paper);border-bottom:1px solid var(--rule)}
 .brand{display:inline-flex;align-items:center;gap:9px;font-weight:650;letter-spacing:-.01em;color:var(--ink);text-decoration:none}
 .brand:hover{text-decoration:none}
 .bar-end{display:flex;align-items:center;gap:12px}
