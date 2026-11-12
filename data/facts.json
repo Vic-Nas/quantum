@@ -33,7 +33,7 @@
    "secondary": "gemini-3.1-flash-lite"
   },
   "url": "https://signal.org/blog/spqr/",
-  "checked": "2026-11-10"
+  "checked": "2026-11-12"
  },
  "iMessage": {
   "kind": "pq",
@@ -94,5 +94,17 @@
   },
   "url": "https://strongswan.org/blog/2024/12/03/strongswan-6.0.0-released.html",
   "checked": "2026-11-10"
+ },
+ "Ethereum": {
+  "kind": "pq",
+  "topic": "Ethereum",
+  "answer": "migrating",
+  "quote": "Users and wallets that want post-quantum protection early can adopt it voluntarily, while the broader migration happens over time.",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemini-3.1-flash-lite"
+  },
+  "url": "https://ethereum.org/roadmap/security/quantum-resistance/",
+  "checked": "2026-11-12"
  }
 }

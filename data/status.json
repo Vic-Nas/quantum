@@ -1,15 +1,15 @@
 {
  "fetched": 100,
- "processed": 100,
+ "processed": 56,
  "counts": {
   "A": 0,
   "B": 0,
-  "drop": 100,
+  "drop": 56,
   "retry": 0,
   "gave_up": 0
  },
  "source_errors": {
-  "arxiv": "GET failed: https://export.arxiv.org/api/query?search_query=au%3ASchrottenloher&start=0&max_results=50&sortBy=submittedDate&sortOrder=descending: HTTP Error 429: Unknown Error",
+  "arxiv": "GET failed: https://export.arxiv.org/api/query?search_query=abs%3A%22discrete+logarithm%22+AND+abs%3Aquantum&start=0&max_results=50&sortBy=submittedDate&sortOrder=descending: The read operation timed out",
   "backfill": "GET failed: https://export.arxiv.org/api/query?id_list=2001.09580%2C2103.06159%2C2602.11457%2C2609.21249&max_results=4: "
  },
  "auto_applied": 0,
@@ -19,5 +19,5 @@
  },
  "queue_size": 0,
  "dry": false,
- "run_at": "2026-11-10T05:26:38+00:00"
+ "run_at": "2026-11-12T05:26:27+00:00"
 }

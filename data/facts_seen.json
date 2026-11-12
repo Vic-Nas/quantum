@@ -1,6 +1,6 @@
 {
  "Chrome / Firefox": "296e7190a473",
- "Signal": "ef37c368363c",
+ "Signal": "b46cd46a0c82",
  "iMessage": "dae268f9a609",
  "SSH": "e377af3dbc21",
  "WireGuard": "1a7222d6bfc5",
@@ -8,5 +8,7 @@
  "IPsec VPNs": "f97bc7f7f7ad",
  "btc-exposed-keys": "ab16f0babdbb",
  "btc-p2pk": "ab16f0babdbb",
- "btc-dormant": "5fefa965ef8f"
+ "btc-dormant": "5fefa965ef8f",
+ "Ethereum": "e0a924382109",
+ "eth-exposed": "5fefa965ef8f"
 }
