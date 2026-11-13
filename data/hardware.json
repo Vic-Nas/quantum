@@ -131,5 +131,21 @@
    "secondary": "gemini-3.1-flash-lite"
   },
   "verification": "auto: verifier + two models agree"
+ },
+ {
+  "id": "page:www.ibm.com/quantum/technology#0",
+  "kind": "hardware",
+  "physical_qubits": 200.0,
+  "target_year": 2029.0,
+  "actor": "IBM",
+  "quote": "Explore IBM's roadmap to executing 100 million quantum operations on 200 qubits by 2029, powered by advances in quantum processors, scalable systems, and software.",
+  "url": "https://www.ibm.com/quantum/technology",
+  "title": "IBM Quantum Computing | Hardware and roadmap",
+  "added": "2026-11-13",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemini-3.1-flash-lite"
+  },
+  "verification": "auto: verifier + two models agree"
  }
 ]
