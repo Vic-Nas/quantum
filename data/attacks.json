@@ -448,5 +448,61 @@
   },
   "verification": "auto: verifier + two model families agree",
   "regex_agrees": true
+ },
+ {
+  "id": "arxiv:2103.06159#0",
+  "kind": "attack",
+  "target": "rsa-2048",
+  "physical_qubits": 13436.0,
+  "runtime": 4248.0,
+  "quote": "Concretely, for a characteristic physical gate error rate of 10^{-3}, a processor cycle time of 1 microsecond, factoring a 2048-bit RSA integer is shown to be possible in 177 days with 3D gauge color codes assuming a threshold of 0.75 % with a processor made with 13436 physical qubits and a memory that can store 28 million spatial modes and 45 temporal modes with 2 hours' storage time.",
+  "url": "http://arxiv.org/abs/2103.06159v2",
+  "title": "Factoring 2048-bit RSA Integers in 177 Days with 13436 Qubits and a Multimode Memory",
+  "published": "2021-03-10",
+  "added": "2026-11-18",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemini-3.1-flash-lite",
+   "different_family": false
+  },
+  "verification": "auto: verifier + two model families agree",
+  "regex_agrees": true
+ },
+ {
+  "id": "arxiv:2609.21249#1",
+  "kind": "attack",
+  "target": "rsa-2048",
+  "physical_qubits": 120000.0,
+  "runtime": 730,
+  "quote": "With this instantiation, we show that a 2048-bit RSA integer can be factored in one month with approximately 120 000 physical qubits, given a physical error rate of 10^{-3}, code cycle time of 1 microsecond and reaction time of 10 microseconds.",
+  "url": "http://arxiv.org/abs/2609.21249v1",
+  "title": "The Pinnacle Architecture with fixed connectivity of degree eight",
+  "published": "2026-09-18",
+  "added": "2026-11-18",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemini-3.1-flash-lite",
+   "different_family": false
+  },
+  "verification": "auto: verifier + two model families agree",
+  "regex_agrees": true
+ },
+ {
+  "id": "arxiv:2602.11457#2",
+  "kind": "attack",
+  "target": "rsa-2048",
+  "physical_qubits": 100000.0,
+  "quote": "The Pinnacle Architecture: Reducing the cost of breaking RSA-2048 to 100 000 physical qubits using quantum LDPC codes",
+  "url": "http://arxiv.org/abs/2602.11457v2",
+  "title": "The Pinnacle Architecture: Reducing the cost of breaking RSA-2048 to 100 000 physical qubits using quantum LDPC codes",
+  "published": "2026-02-12",
+  "added": "2026-11-18",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemini-3.1-flash-lite",
+   "different_family": false
+  },
+  "verification": "auto: verifier + two model families agree",
+  "regex_agrees": true
  }
 ]

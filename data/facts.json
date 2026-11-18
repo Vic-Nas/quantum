@@ -3,9 +3,14 @@
   "kind": "figure",
   "group": "ecdlp-256",
   "label": "in outputs whose public key is already visible",
-  "answer": "about 6.3 million BTC",
+  "answer": "1,720,747 BTC",
+  "quote": "P2PK, one of Bitcoin's original output types used for early mining rewards [BSE18], represents only ~0.025% of current UTXOs but locks a disproportionate ~8.68% of Bitcoin's value (~1,720,747 BTC) [Erh23].",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemini-3.1-flash-lite"
+  },
   "url": "https://chaincode.com/bitcoin-post-quantum.pdf",
-  "seed": true
+  "checked": "2026-11-18"
  },
  "btc-dormant": {
   "kind": "figure",
@@ -78,10 +83,10 @@
   "quote": "We will provide updates in the future as we migrate other parts of our infrastructure to support PQC, as we firmly believe that cryptographic designs should be done in the public.",
   "models": {
    "primary": "gemini-3.5-flash-lite",
-   "secondary": "gemma-4-31b-it"
+   "secondary": "gemini-3.1-flash-lite"
   },
   "url": "https://1password.com/blog/post-quantum-cryptography",
-  "checked": "2026-11-10"
+  "checked": "2026-11-18"
  },
  "IPsec VPNs": {
   "kind": "pq",
@@ -105,6 +110,19 @@
    "secondary": "gemini-3.1-flash-lite"
   },
   "url": "https://ethereum.org/roadmap/security/quantum-resistance/",
-  "checked": "2026-11-13"
+  "checked": "2026-11-18"
+ },
+ "btc-p2pk": {
+  "kind": "figure",
+  "group": "ecdlp-256",
+  "label": "in old pay-to-public-key (P2PK) outputs",
+  "answer": "1,720,747 BTC",
+  "quote": "P2PK, one of Bitcoin's original output types used for early mining rewards [BSE18], represents only ~0.025% of current UTXOs but locks a disproportionate ~8.68% of Bitcoin's value (~1,720,747 BTC) [Erh23].",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemini-3.1-flash-lite"
+  },
+  "url": "https://chaincode.com/bitcoin-post-quantum.pdf",
+  "checked": "2026-11-18"
  }
 }
