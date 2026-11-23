@@ -504,5 +504,23 @@
   },
   "verification": "auto: verifier + two model families agree",
   "regex_agrees": true
+ },
+ {
+  "id": "arxiv:2604.02311#0",
+  "kind": "attack",
+  "target": "ecdlp-256",
+  "logical_qubits": 1333.0,
+  "quote": "In particular, for a 256-bit prime-field curve, our estimate reduces the logical-qubit count to 1333, compared with 2124 in the previous low-width implementation of H\u00e4ner et al.",
+  "url": "http://arxiv.org/abs/2604.02311v2",
+  "title": "Space-Efficient Quantum Algorithm for Elliptic Curve Discrete Logarithms with Resource Estimation",
+  "published": "2026-04-02",
+  "added": "2026-11-23",
+  "models": {
+   "primary": "gemini-3.5-flash-lite",
+   "secondary": "gemini-3.1-flash-lite",
+   "different_family": false
+  },
+  "verification": "auto: verifier + two model families agree",
+  "regex_agrees": false
  }
 ]

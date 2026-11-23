@@ -1,23 +1,22 @@
 {
- "fetched": 100,
- "processed": 28,
+ "fetched": 103,
+ "processed": 59,
  "counts": {
-  "A": 0,
+  "A": 1,
   "B": 0,
-  "drop": 28,
+  "drop": 58,
   "retry": 0,
   "gave_up": 0
  },
  "source_errors": {
-  "arxiv": "GET failed: https://export.arxiv.org/api/query?search_query=abs%3A%22discrete+logarithm%22+AND+abs%3Aquantum&start=0&max_results=50&sortBy=submittedDate&sortOrder=descending: HTTP Error 429: Unknown Error",
-  "backfill": "GET failed: https://export.arxiv.org/api/query?id_list=2604.02311%2C2606.02235%2C1910.01700&max_results=3: HTTP Error 42"
+  "arxiv": "GET failed: https://export.arxiv.org/api/query?search_query=abs%3A%22discrete+logarithm%22+AND+abs%3Aquantum&start=0&max_results=50&sortBy=submittedDate&sortOrder=descending: The read operation timed out"
  },
- "auto_applied": 0,
+ "auto_applied": 1,
  "held": 0,
  "gate": {
   "ok": true
  },
  "queue_size": 0,
  "dry": false,
- "run_at": "2026-11-22T05:25:36+00:00"
+ "run_at": "2026-11-23T05:30:22+00:00"
 }
